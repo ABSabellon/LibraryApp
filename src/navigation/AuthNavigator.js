@@ -17,6 +17,7 @@ const AuthNavigator = () => {
         headerShown: false,
       }}
     >
+      <Text style={{ fontSize: 24, color: "black" }}>📌 NOT AUTHENTICATED!</Text>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="AdminRegister" component={AdminRegisterScreen} />
