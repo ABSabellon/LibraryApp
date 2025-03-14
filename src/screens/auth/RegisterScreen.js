@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  KeyboardAvoidingView, 
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Alert
@@ -13,9 +13,13 @@ import { TextInput, Button, RadioButton } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const RegisterScreen = ({ navigation }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+const RegisterScreen = ({ navigation, route }) => {
+  // Check if we were passed initial values from borrowing flow
+  const initialValues = route.params?.initialValues || {};
+  
+  const [name, setName] = useState(initialValues.name || '');
+  const [email, setEmail] = useState(initialValues.email || '');
+  const [phone, setPhone] = useState(initialValues.phone || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('borrower');
@@ -25,6 +29,20 @@ const RegisterScreen = ({ navigation }) => {
   
   const { signUp, error } = useAuth();
   
+  // If coming from borrowing flow, navigate back to book after registration
+  const navigateAfterRegister = () => {
+    if (initialValues.bookId) {
+      // Navigate back to the borrowing flow
+      navigation.navigate('Borrower', {
+        screen: 'Borrow',
+        params: { bookId: initialValues.bookId }
+      });
+    } else {
+      // Standard navigation to Login
+      navigation.navigate('Login');
+    }
+  };
+
   const handleRegister = async () => {
     // Validate inputs
     if (!name || !email || !password || !confirmPassword) {
@@ -44,9 +62,22 @@ const RegisterScreen = ({ navigation }) => {
     
     try {
       setLoading(true);
-      await signUp(email, password, name, role);
-      Alert.alert('Success', 'Account created successfully');
-      navigation.navigate('Login');
+      
+      // Create the user object with additional phone info if available
+      const userInfo = {
+        name,
+        email,
+        phone,
+        role
+      };
+      
+      await signUp(email, password, name, role, phone);
+      
+      Alert.alert(
+        'Success',
+        'Account created successfully',
+        [{ text: 'OK', onPress: navigateAfterRegister }]
+      );
     } catch (error) {
       Alert.alert('Registration Failed', error.message);
     } finally {
@@ -90,6 +121,16 @@ const RegisterScreen = ({ navigation }) => {
             keyboardType="email-address"
             autoCapitalize="none"
             left={<TextInput.Icon icon="email" />}
+          />
+          
+          <TextInput
+            label="Phone Number"
+            value={phone}
+            onChangeText={setPhone}
+            mode="outlined"
+            style={styles.input}
+            keyboardType="phone-pad"
+            left={<TextInput.Icon icon="phone" />}
           />
           
           <TextInput

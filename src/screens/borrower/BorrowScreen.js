@@ -6,19 +6,24 @@ import {
   ScrollView, 
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import { TextInput, Button, Card, Paragraph, Title } from 'react-native-paper';
+import { TextInput, Button, Card, Paragraph, Title, Dialog, Portal } from 'react-native-paper';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { useAuth } from '../../context/AuthContext';
 import { getBookById } from '../../services/bookService';
 import { generateOTP, storeOTP, sendOTPViaEmail, sendOTPViaSMS } from '../../services/borrowService';
+import { checkUserExists } from '../../services/userService';
 
 const BorrowScreen = ({ navigation, route }) => {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [pendingBorrowValues, setPendingBorrowValues] = useState(null);
+  const [checkingUser, setCheckingUser] = useState(false);
   const { currentUser, getUserProfile } = useAuth();
   const [userProfile, setUserProfile] = useState(null);
   
@@ -76,11 +81,27 @@ const BorrowScreen = ({ navigation, route }) => {
     fetchData();
   }, [bookId, currentUser]);
   
-  // Handle form submission
-  const handleBorrow = async (values) => {
+  // Handle the signup prompt response
+  const handleSignupPrompt = (agree) => {
+    setShowSignupPrompt(false);
+    
+    if (agree) {
+      // Navigate to the registration screen with pre-filled data
+      navigation.navigate('Auth', { 
+        screen: 'Register',
+        params: {
+          initialValues: pendingBorrowValues
+        }
+      });
+    }
+    
+    // Clear pending values if they disagree
+    setPendingBorrowValues(null);
+  };
+
+  // Proceed with borrowing after user check
+  const proceedWithBorrowing = async (values) => {
     try {
-      setSubmitting(true);
-      
       // Generate OTP
       const otp = generateOTP();
       
@@ -129,12 +150,39 @@ const BorrowScreen = ({ navigation, route }) => {
         otpMethod: values.email ? 'email' : 'phone',
         otpDestination: values.email || values.phone
       });
+    } catch (error) {
+      console.error('Error in borrowing process:', error);
+      Alert.alert('Error', 'Failed to initiate book borrowing. Please try again.');
+    }
+  };
+  
+  // Handle form submission
+  const handleBorrow = async (values) => {
+    try {
+      setSubmitting(true);
+      setCheckingUser(true);
+      
+      // Check if user is registered in our system
+      const userExists = await checkUserExists(values.email);
+      
+      if (!userExists && !currentUser) {
+        // Store values for later use
+        setPendingBorrowValues(values);
+        
+        // Show signup prompt
+        setShowSignupPrompt(true);
+        return;
+      }
+      
+      // If user exists or is logged in, proceed with borrowing
+      await proceedWithBorrowing(values);
       
     } catch (error) {
-      console.error('Error generating OTP:', error);
+      console.error('Error checking user or generating OTP:', error);
       Alert.alert('Error', 'Failed to initiate book borrowing. Please try again.');
     } finally {
       setSubmitting(false);
+      setCheckingUser(false);
     }
   };
   
@@ -155,105 +203,129 @@ const BorrowScreen = ({ navigation, route }) => {
   };
   
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Borrow Book</Text>
-        </View>
-        
-        <Card style={styles.bookCard}>
-          <Card.Content>
-            <Title style={styles.bookTitle}>{book.title}</Title>
-            <Paragraph style={styles.bookAuthor}>by {book.author}</Paragraph>
-            
-            {book.isbn && (
-              <View style={styles.isbnContainer}>
-                <Text style={styles.isbnText}>ISBN: {book.isbn}</Text>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-        
-        <View style={styles.formContainer}>
-          <Text style={styles.sectionTitle}>Your Information</Text>
-          <Text style={styles.instruction}>
-            Please provide your details below. We'll send a verification code to complete your borrowing request.
-          </Text>
+    <>
+      {/* Signup prompt dialog */}
+      <Portal>
+        <Dialog
+          visible={showSignupPrompt}
+          onDismiss={() => handleSignupPrompt(false)}
+        >
+          <Dialog.Title>Create an Account</Dialog.Title>
+          <Dialog.Content>
+            <Paragraph>
+              To borrow books from our library, you need to create an account. Would you like to sign up now?
+            </Paragraph>
+            <Paragraph style={{ marginTop: 8, fontStyle: 'italic' }}>
+              Your provided details will be used to create your account.
+            </Paragraph>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => handleSignupPrompt(false)}>Cancel</Button>
+            <Button onPress={() => handleSignupPrompt(true)}>Sign Up</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Borrow Book</Text>
+          </View>
           
-          <Formik
-            initialValues={initialValues}
-            validationSchema={BorrowerSchema}
-            onSubmit={handleBorrow}
-          >
-            {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-              <View>
-                <TextInput
-                  label="Full Name *"
-                  value={values.name}
-                  onChangeText={handleChange('name')}
-                  onBlur={handleBlur('name')}
-                  mode="outlined"
-                  style={styles.input}
-                  error={touched.name && errors.name}
-                  left={<TextInput.Icon icon="account" />}
-                />
-                {touched.name && errors.name && (
-                  <Text style={styles.errorText}>{errors.name}</Text>
-                )}
-                
-                <TextInput
-                  label="Email Address *"
-                  value={values.email}
-                  onChangeText={handleChange('email')}
-                  onBlur={handleBlur('email')}
-                  mode="outlined"
-                  style={styles.input}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  error={touched.email && errors.email}
-                  left={<TextInput.Icon icon="email" />}
-                />
-                {touched.email && errors.email && (
-                  <Text style={styles.errorText}>{errors.email}</Text>
-                )}
-                
-                <TextInput
-                  label="Phone Number"
-                  value={values.phone}
-                  onChangeText={handleChange('phone')}
-                  onBlur={handleBlur('phone')}
-                  mode="outlined"
-                  style={styles.input}
-                  keyboardType="phone-pad"
-                  error={touched.phone && errors.phone}
-                  left={<TextInput.Icon icon="phone" />}
-                />
-                {touched.phone && errors.phone && (
-                  <Text style={styles.errorText}>{errors.phone}</Text>
-                )}
-                
-                <Text style={styles.noteText}>
-                  * Email is required for sending verification code and borrowing receipts
-                </Text>
-                
-                <Button
-                  mode="contained"
-                  onPress={handleSubmit}
-                  style={styles.submitButton}
-                  loading={submitting}
-                  disabled={submitting}
-                >
-                  Continue to Verification
-                </Button>
-              </View>
-            )}
-          </Formik>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <Card style={styles.bookCard}>
+            <Card.Content>
+              <Title style={styles.bookTitle}>{book.title}</Title>
+              <Paragraph style={styles.bookAuthor}>by {book.author}</Paragraph>
+              
+              {book.isbn && (
+                <View style={styles.isbnContainer}>
+                  <Text style={styles.isbnText}>ISBN: {book.isbn}</Text>
+                </View>
+              )}
+            </Card.Content>
+          </Card>
+          
+          <View style={styles.formContainer}>
+            <Text style={styles.sectionTitle}>Your Information</Text>
+            <Text style={styles.instruction}>
+              Please provide your details below. We'll send a verification code to complete your borrowing request.
+            </Text>
+            
+            <Formik
+              initialValues={initialValues}
+              validationSchema={BorrowerSchema}
+              onSubmit={handleBorrow}
+            >
+              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                <View>
+                  <TextInput
+                    label="Full Name *"
+                    value={values.name}
+                    onChangeText={handleChange('name')}
+                    onBlur={handleBlur('name')}
+                    mode="outlined"
+                    style={styles.input}
+                    error={touched.name && errors.name}
+                    left={<TextInput.Icon icon="account" />}
+                  />
+                  {touched.name && errors.name && (
+                    <Text style={styles.errorText}>{errors.name}</Text>
+                  )}
+                  
+                  <TextInput
+                    label="Email Address *"
+                    value={values.email}
+                    onChangeText={handleChange('email')}
+                    onBlur={handleBlur('email')}
+                    mode="outlined"
+                    style={styles.input}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    error={touched.email && errors.email}
+                    left={<TextInput.Icon icon="email" />}
+                  />
+                  {touched.email && errors.email && (
+                    <Text style={styles.errorText}>{errors.email}</Text>
+                  )}
+                  
+                  <TextInput
+                    label="Phone Number"
+                    value={values.phone}
+                    onChangeText={handleChange('phone')}
+                    onBlur={handleBlur('phone')}
+                    mode="outlined"
+                    style={styles.input}
+                    keyboardType="phone-pad"
+                    error={touched.phone && errors.phone}
+                    left={<TextInput.Icon icon="phone" />}
+                  />
+                  {touched.phone && errors.phone && (
+                    <Text style={styles.errorText}>{errors.phone}</Text>
+                  )}
+                  
+                  <Text style={styles.noteText}>
+                    * Email is required for sending verification code and borrowing receipts
+                  </Text>
+                  
+                  <Button
+                    mode="contained"
+                    onPress={handleSubmit}
+                    style={styles.submitButton}
+                    loading={submitting || checkingUser}
+                    disabled={submitting || checkingUser}
+                  >
+                    {checkingUser ? 'Checking...' : 'Continue to Verification'}
+                  </Button>
+                </View>
+              )}
+            </Formik>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </>
   );
 };
 

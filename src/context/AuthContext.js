@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState('');
 
   // Create a new user
-  const signUp = async (email, password, name, role = 'borrower') => {
+  const signUp = async (email, password, name, role = 'borrower', phone = '') => {
     try {
       setError('');
       // Create auth user
@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }) => {
         email,
         name,
         role,
+        phone,
         createdAt: new Date()
       });
       
