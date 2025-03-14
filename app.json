@@ -33,27 +33,6 @@
     "web": {
       "favicon": "./src/assets/favicon.png"
     },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan book barcodes and QR codes."
-        }
-      ],
-      [
-        "expo-barcode-scanner",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan book barcodes and QR codes."
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to save QR codes.",
-          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save QR codes to your photo library.",
-          "isAccessMediaLocationEnabled": true
-        }
-      ]
-    ]
+    "plugins": []
   }
 }
