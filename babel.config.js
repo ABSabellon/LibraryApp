@@ -3,7 +3,10 @@ module.exports = function(api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Add any babel plugins here if needed for specific functionalities
+      // Support for .env file
+      ["module:babel-plugin-inline-import", {
+        "extensions": [".env"]
+      }]
     ],
   };
 };
