@@ -8,7 +8,7 @@ import DashboardScreen from '../screens/admin/DashboardScreen';
 import BookListScreen from '../screens/admin/BookListScreen';
 import AddBookScreen from '../screens/admin/AddBookScreen';
 import BookDetailsScreen from '../screens/admin/BookDetailsScreen';
-import BorrowersScreen from '../screens/admin/BorrowersScreen';
+import RegisterScreen from '../screens/admin/RegisterScreen';
 import ReportsScreen from '../screens/admin/ReportsScreen';
 import ScanBookScreen from '../screens/admin/ScanBookScreen';
 import GenerateQRScreen from '../screens/admin/GenerateQRScreen';
@@ -37,7 +37,7 @@ const BooksStack = () => (
 
 const BorrowersStack = () => (
   <Stack.Navigator>
-    <Stack.Screen name="Borrowers" component={BorrowersScreen} options={{ title: 'Borrowers' }} />
+    <Stack.Screen name="Borrowers" component={RegisterScreen} options={{ title: 'Borrowers' }} />
   </Stack.Navigator>
 );
 
