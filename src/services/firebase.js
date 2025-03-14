@@ -13,6 +13,7 @@ const firebaseConfig = {
 };
 
 if (process.env.FIREBASE_API_KEY) {
+  console.log('Process Env:', process.env);
   console.log('Using Firebase configuration from environment variables');
   
   Object.assign(firebaseConfig, {
