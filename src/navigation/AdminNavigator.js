@@ -8,7 +8,7 @@ import DashboardScreen from '../screens/admin/DashboardScreen';
 import BookListScreen from '../screens/admin/BookListScreen';
 import AddBookScreen from '../screens/admin/AddBookScreen';
 import BookDetailsScreen from '../screens/admin/BookDetailsScreen';
-import RegisterScreen from '../screens/admin/RegisterScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
 import ReportsScreen from '../screens/admin/ReportsScreen';
 import ScanBookScreen from '../screens/admin/ScanBookScreen';
 import GenerateQRScreen from '../screens/admin/GenerateQRScreen';
