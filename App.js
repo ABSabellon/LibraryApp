@@ -36,8 +36,6 @@ export default function App() {
       <AuthProvider>
         <PaperProvider theme={theme}>
           <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-            <Text style={{ fontSize: 24, color: "black" }}>📌 APP STARTED!</Text>
           <AppNavigator />
         </PaperProvider>
       </AuthProvider>
