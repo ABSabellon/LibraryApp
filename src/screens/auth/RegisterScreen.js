@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ScrollView,
   Alert
 } from 'react-native';
-import { TextInput, Button, RadioButton } from 'react-native-paper';
+import { TextInput, Button } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -22,12 +22,11 @@ const RegisterScreen = ({ navigation, route }) => {
   const [phone, setPhone] = useState(initialValues.phone || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('borrower');
   const [loading, setLoading] = useState(false);
   const [secureTextEntry, setSecureTextEntry] = useState(true);
   const [secureConfirmTextEntry, setSecureConfirmTextEntry] = useState(true);
   
-  const { signUp, error } = useAuth();
+  const { signUp } = useAuth();
   
   // If coming from borrowing flow, navigate back to book after registration
   const navigateAfterRegister = () => {
@@ -63,15 +62,8 @@ const RegisterScreen = ({ navigation, route }) => {
     try {
       setLoading(true);
       
-      // Create the user object with additional phone info if available
-      const userInfo = {
-        name,
-        email,
-        phone,
-        role
-      };
-      
-      await signUp(email, password, name, role, phone);
+      // Create the user - always as a borrower
+      await signUp(email, password, name, 'borrower', phone);
       
       Alert.alert(
         'Success',
@@ -167,21 +159,11 @@ const RegisterScreen = ({ navigation, route }) => {
             }
           />
           
-          <Text style={styles.roleLabel}>Choose your role:</Text>
-          <View style={styles.roleContainer}>
-            <RadioButton.Group
-              onValueChange={value => setRole(value)}
-              value={role}
-            >
-              <View style={styles.radioOption}>
-                <RadioButton value="borrower" color="#4A90E2" />
-                <Text style={styles.radioLabel}>Borrower</Text>
-              </View>
-              <View style={styles.radioOption}>
-                <RadioButton value="admin" color="#4A90E2" />
-                <Text style={styles.radioLabel}>Administrator</Text>
-              </View>
-            </RadioButton.Group>
+          <View style={styles.infoContainer}>
+            <MaterialCommunityIcons name="information-outline" size={16} color="#666666" />
+            <Text style={styles.infoText}>
+              By registering, you'll be able to borrow books from our library
+            </Text>
           </View>
           
           <Button 
@@ -191,7 +173,7 @@ const RegisterScreen = ({ navigation, route }) => {
             loading={loading}
             disabled={loading}
           >
-            Register
+            Create Account
           </Button>
           
           <View style={styles.loginContainer}>
@@ -235,22 +217,20 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 15,
   },
-  roleLabel: {
-    fontSize: 16,
-    marginVertical: 10,
-    color: '#333333',
-  },
-  roleContainer: {
-    marginBottom: 20,
-  },
-  radioOption: {
+  infoContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 5,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: 'flex-start',
   },
-  radioLabel: {
-    fontSize: 16,
-    color: '#333333',
+  infoText: {
+    marginLeft: 10,
+    flex: 1,
+    fontSize: 14,
+    color: '#666666',
+    lineHeight: 20,
   },
   button: {
     padding: 5,

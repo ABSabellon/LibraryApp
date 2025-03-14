@@ -115,6 +115,13 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.registerLink}>Register</Text>
             </TouchableOpacity>
           </View>
+          
+          <TouchableOpacity
+            style={styles.adminLinkContainer}
+            onPress={() => navigation.navigate('AdminRegister')}
+          >
+            <Text style={styles.adminLink}>Admin Registration</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -174,6 +181,16 @@ const styles = StyleSheet.create({
   registerLink: {
     color: '#4A90E2',
     fontWeight: 'bold',
+  },
+  adminLinkContainer: {
+    marginTop: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminLink: {
+    color: '#999999',
+    fontSize: 12,
+    textDecorationLine: 'underline',
   },
 });
 
