@@ -24,7 +24,7 @@ const ProfileScreen = ({ navigation }) => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
-  const { currentUser, getUserProfile, signOut } = useAuth();
+  const { currentUser, getUserProfile, signOut, userRole, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -101,8 +101,10 @@ const ProfileScreen = ({ navigation }) => {
           </View>
           <Text style={styles.userName}>{userProfile?.name}</Text>
           <Text style={styles.userEmail}>{userProfile?.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>Administrator</Text>
+          <View style={[styles.roleBadge, isSuperAdmin() ? styles.superAdminBadge : {}]}>
+            <Text style={[styles.roleText, isSuperAdmin() ? styles.superAdminText : {}]}>
+              {isSuperAdmin() ? 'Super Administrator' : 'Administrator'}
+            </Text>
           </View>
         </View>
 
@@ -119,6 +121,21 @@ const ProfileScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('ManageInvites')}
                 style={styles.listItem}
               />
+              
+              {isSuperAdmin() && (
+                <>
+                  <Divider />
+                  
+                  <List.Item
+                    title="Manage Administrators"
+                    description="Promote regular admins to super admins"
+                    left={props => <List.Icon {...props} icon="shield-account" color="#4A90E2" />}
+                    right={props => <List.Icon {...props} icon="chevron-right" />}
+                    onPress={() => navigation.navigate('ManageAdmins')}
+                    style={styles.listItem}
+                  />
+                </>
+              )}
               
               <Divider />
               
@@ -227,6 +244,13 @@ const styles = StyleSheet.create({
   roleText: {
     color: '#FF9500',
     fontWeight: 'bold',
+  },
+  superAdminBadge: {
+    backgroundColor: '#F0F8FF',
+    borderColor: '#4A90E2',
+  },
+  superAdminText: {
+    color: '#4A90E2',
   },
   settingsCard: {
     margin: 15,

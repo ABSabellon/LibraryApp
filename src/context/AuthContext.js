@@ -24,14 +24,11 @@ export const AuthProvider = ({ children }) => {
   // Create a new user
   const signUp = async (email, password, name, role = 'borrower', phone = '') => {
     try {
-      console.log('Signing up :: ',auth )
 
       setError('');
 
       // Create auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      console.log('userCredential :: ', userCredential )
 
       const now = new Date();
       
@@ -45,6 +42,8 @@ export const AuthProvider = ({ children }) => {
           name,
           role,
           phone,
+          email_verified: false,
+          mobile_verified: false,
         },
         
         // Account status
@@ -63,7 +62,7 @@ export const AuthProvider = ({ children }) => {
         logs: {
           created: {
             created_by: {
-              uid: 'system', // System-created account
+              uid: userCredential.user.uid, // System-created account
               email: 'system',
               name: 'System Registration'
             },
@@ -92,7 +91,8 @@ export const AuthProvider = ({ children }) => {
       
       // Update last login timestamp and add to login history
       const now = new Date();
-      const userRef = doc(db, 'users', userCredential.user.uid);
+      const userRef = doc(db, 'Users', userCredential.user.uid);
+
       
       try {
         // Get current user data to update login history
@@ -125,13 +125,15 @@ export const AuthProvider = ({ children }) => {
               }
             }
           });
+
+          return userCredential.user;
         }
       } catch (updateError) {
         // Non-critical error, just log it but don't fail the sign-in
         console.error('Error updating login history:', updateError);
       }
       
-      return userCredential;
+      return userCredential.user;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -164,7 +166,12 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is admin
   const isAdmin = () => {
-    return userRole === 'admin';
+    return userRole === 'admin' || userRole === 'superadmin';
+  };
+
+  // Check if user is super admin
+  const isSuperAdmin = () => {
+    return userRole === 'superadmin';
   };
 
   // Check if user is borrower
@@ -175,7 +182,7 @@ export const AuthProvider = ({ children }) => {
   // Get user profile from Firestore
   const getUserProfile = async (uid) => {
     try {
-      const userDoc = await getDoc(doc(db, 'users', uid));
+      const userDoc = await getDoc(doc(db, 'Users', uid));
       if (userDoc.exists()) {
         return userDoc.data();
       }
@@ -183,6 +190,38 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Error getting user profile:', err);
       return null;
+    }
+  };
+  
+  // Promote user to super admin - only callable by existing super admins
+  const promoteToSuperAdmin = async (adminUid) => {
+    try {
+      const userRef = doc(db, 'Users', adminUid);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+      
+      const userData = userDoc.data();
+      const currentRole = userData?.profile?.role;
+      
+      // Can only promote admins to super admins
+      if (currentRole !== 'admin') {
+        throw new Error('Only administrators can be promoted to super administrators');
+      }
+      
+      // Update the user's role
+      await updateDoc(userRef, {
+        'profile.role': 'superadmin',
+        'profile.promoted_at': new Date(),
+        'profile.promoted_by': currentUser?.uid,
+      });
+      
+      return true;
+    } catch (err) {
+      console.error('Error promoting user to super admin:', err);
+      throw err;
     }
   };
 
@@ -197,7 +236,9 @@ export const AuthProvider = ({ children }) => {
         const profile = await getUserProfile(user.uid);
         
         if (profile) {
-          setUserRole(profile.role);
+          // Set the user role - role is nested inside profile object
+          console.log('Setting user role from profile:', profile);
+          setUserRole(profile.profile?.role);
           
           // Check if this is a new session (comparing last session with current)
           const now = new Date();
@@ -208,7 +249,7 @@ export const AuthProvider = ({ children }) => {
           if (!lastSessionTime || (now - lastSessionTime) > (60 * 60 * 1000)) {
             try {
               // Update session information
-              const userRef = doc(db, 'users', user.uid);
+              const userRef = doc(db, 'Users', user.uid);
               await updateDoc(userRef, {
                 last_session: now,
                 session_count: (profile.session_count || 0) + 1,
@@ -241,8 +282,10 @@ export const AuthProvider = ({ children }) => {
     signOut,
     resetPassword,
     isAdmin,
+    isSuperAdmin,
     isBorrower,
-    getUserProfile
+    getUserProfile,
+    promoteToSuperAdmin
   };
 
   return (

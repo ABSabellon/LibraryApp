@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator,
+  Modal
 } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
@@ -27,61 +29,74 @@ const RegisterScreen = ({ navigation, route }) => {
   const [secureConfirmTextEntry, setSecureConfirmTextEntry] = useState(true);
   
   const { signUp } = useAuth();
-  
-  // If coming from borrowing flow, navigate back to book after registration
-  const navigateAfterRegister = () => {
-    if (initialValues.bookId) {
-      // Navigate back to the borrowing flow
-      navigation.navigate('Borrower', {
-        screen: 'Borrow',
-        params: { bookId: initialValues.bookId }
-      });
-    } else {
-      // Standard navigation to Login
-      navigation.navigate('Login');
-    }
-  };
 
   const handleRegister = async () => {
-    // Validate inputs
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    // // Validate inputs
+    // if (!name || !email || !password || !confirmPassword) {
+    //   Alert.alert('Error', 'Please fill in all fields');
+    //   return;
+    // }
     
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
+    // if (password !== confirmPassword) {
+    //   Alert.alert('Error', 'Passwords do not match');
+    //   return;
+    // }
     
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password should be at least 6 characters');
-      return;
-    }
+    // if (password.length < 6) {
+    //   Alert.alert('Error', 'Password should be at least 6 characters');
+    //   return;
+    // }
     
     try {
       setLoading(true);
       
-      // Create the user - always as a borrower
-      await signUp(email, password, name, 'borrower', phone);
+      // Create the user
+      // await signUp(email, password, name, 'borrower', phone);
+      await signUp('test@test.com', 'tup5ab8e', 'test tester', 'borrower', '09178181996');
       
-      Alert.alert(
-        'Success',
-        'Account created successfully',
-        [{ text: 'OK', onPress: navigateAfterRegister }]
-      );
+      console.log('Registration complete - navigating directly to Borrower home');
+      
+      // Force navigation to Borrower screen immediately
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Borrower' }],
+        });
+      }, 500); // Small delay to ensure auth state is updated
+      // Don't set loading to false on success - keep loader visible during navigation
     } catch (error) {
+      setLoading(false); // Only hide loader on error
       Alert.alert('Registration Failed', error.message);
-    } finally {
-      setLoading(false);
     }
   };
+  
+  // Use effect to cleanup loading state when component unmounts
+  useEffect(() => {
+    return () => {
+      // Reset loading state when component unmounts
+      setLoading(false);
+    };
+  }, []);
   
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      {/* Loading overlay */}
+      <Modal
+        transparent={true}
+        animationType="fade"
+        visible={loading}
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+            <Text style={styles.loadingText}>Creating your account...</Text>
+          </View>
+        </View>
+      </Modal>
+      
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.headerContainer}>
           <TouchableOpacity
@@ -192,6 +207,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#4A90E2',
+    fontWeight: '600',
   },
   scrollContainer: {
     flexGrow: 1,

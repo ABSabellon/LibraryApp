@@ -29,7 +29,7 @@ const AppNavigator = () => {
           <Stack.Screen name="Guest" component={GuestNavigator} />
         ) : (
           // Authenticated - show app screens based on user role
-          userRole === 'admin' ? (
+          userRole === 'admin' || userRole === 'superadmin' ? (
             <Stack.Screen name="Admin" component={AdminNavigator} />
           ) : (
             <Stack.Screen name="Borrower" component={BorrowerNavigator} />

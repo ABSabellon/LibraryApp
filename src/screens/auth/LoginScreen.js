@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Image, 
-  KeyboardAvoidingView, 
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator,
+  Modal
 } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import { useAuth } from '../../context/AuthContext';
@@ -23,27 +25,59 @@ const LoginScreen = ({ navigation }) => {
   const { signIn, error } = useAuth();
   
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    // For testing, use hardcoded credentials
+   
+    // if (!email || !password) {
+    //   Alert.alert('Error', 'Please fill in all fields');
+    //   return;
+    // }
     
     try {
       setLoading(true);
-      await signIn(email, password);
-      // Navigation will be handled by the AppNavigator based on auth state
+      
+      // await signIn(email, password);
+
+      await signIn('test@test.com', 'tup5ab8e');
+      
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Borrower' }],
+        });
+      }, 500); // Small delay to ensure auth state is updated
     } catch (error) {
+      setLoading(false); // Only hide loader on error
       Alert.alert('Login Failed', error.message);
-    } finally {
-      setLoading(false);
     }
   };
+  
+  // Use effect to cleanup loading state when component unmounts
+  useEffect(() => {
+    return () => {
+      // Reset loading state when component unmounts
+      setLoading(false);
+    };
+  }, []);
   
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      {/* Loading overlay */}
+      <Modal
+        transparent={true}
+        animationType="fade"
+        visible={loading}
+      >
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+            <Text style={styles.loadingText}>Logging in...</Text>
+          </View>
+        </View>
+      </Modal>
+      
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.logoContainer}>
           <Image 
@@ -132,6 +166,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#4A90E2',
+    fontWeight: '600',
   },
   scrollContainer: {
     flexGrow: 1,

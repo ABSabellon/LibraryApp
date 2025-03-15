@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
@@ -12,10 +12,10 @@ import {
   ScrollView,
   Button
 } from 'react-native';
-import { 
-  Searchbar, 
-  Chip, 
-  Menu, 
+import {
+  Searchbar,
+  Chip,
+  Menu,
   Divider,
   FAB,
   Card,
@@ -24,8 +24,10 @@ import {
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getAllBooks } from '../../services/bookService';
+import { useAuth } from '../../context/AuthContext';
 
 const CatalogScreen = ({ navigation }) => {
+  const { userRole } = useAuth();
   const [books, setBooks] = useState([]);
   const [filteredBooks, setFilteredBooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -286,13 +288,6 @@ const CatalogScreen = ({ navigation }) => {
           )}
         </>
       )}
-      
-      <FAB
-        style={styles.scanFab}
-        icon="qrcode-scan"
-        onPress={() => navigation.navigate('ScanTab')}
-        color="#FFFFFF"
-      />
     </View>
   );
 };
@@ -429,13 +424,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  scanFab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#4A90E2',
   },
 });
 

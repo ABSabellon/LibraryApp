@@ -14,6 +14,7 @@ import ScanBookScreen from '../screens/admin/ScanBookScreen';
 import GenerateQRScreen from '../screens/admin/GenerateQRScreen';
 import ProfileScreen from '../screens/admin/ProfileScreen';
 import ManageInvitesScreen from '../screens/admin/ManageInvitesScreen';
+import ManageAdminsScreen from '../screens/admin/ManageAdminsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -51,6 +52,7 @@ const ProfileStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="AdminProfile" component={ProfileScreen} options={{ title: 'My Profile' }} />
     <Stack.Screen name="ManageInvites" component={ManageInvitesScreen} options={{ title: 'Admin Invitations' }} />
+    <Stack.Screen name="ManageAdmins" component={ManageAdminsScreen} options={{ title: 'Manage Administrators' }} />
   </Stack.Navigator>
 );
 

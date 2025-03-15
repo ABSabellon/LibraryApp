@@ -34,7 +34,7 @@ const ManageInvitesScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const { currentUser } = useAuth();
+  const { currentUser, userRole, isSuperAdmin } = useAuth();
 
   useEffect(() => {
     loadInvites();
@@ -151,39 +151,59 @@ const ManageInvitesScreen = ({ navigation }) => {
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#333333" />
         </TouchableOpacity>
-        <Headline style={styles.headerTitle}>Admin Invitations</Headline>
+        <View style={styles.headerTitleContainer}>
+          <Headline style={styles.headerTitle}>Admin Invitations</Headline>
+          {userRole === 'superadmin' && (
+            <Chip mode="outlined" style={styles.superAdminChip}>Super Admin</Chip>
+          )}
+        </View>
       </View>
 
-      <Card style={styles.createInviteCard}>
-        <Card.Content>
-          <Text style={styles.createInviteTitle}>Invite New Admin</Text>
-          <Text style={styles.createInviteDescription}>
-            Send an invitation code to create a new administrator account
-          </Text>
-          
-          <TextInput
-            label="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            mode="outlined"
-            style={styles.emailInput}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            left={<TextInput.Icon icon="email" />}
-          />
-          
-          <Button
-            mode="contained"
-            onPress={handleCreateInvite}
-            loading={submitting}
-            disabled={submitting || !email}
-            style={styles.sendButton}
-            icon="send"
-          >
-            Send Invitation
-          </Button>
-        </Card.Content>
-      </Card>
+      {/* Only show the create invite card for superadmins */}
+      {isSuperAdmin() && (
+        <Card style={styles.createInviteCard}>
+          <Card.Content>
+            <Text style={styles.createInviteTitle}>Invite New Admin</Text>
+            <Text style={styles.createInviteDescription}>
+              Send an invitation code to create a new administrator account
+            </Text>
+            
+            <TextInput
+              label="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              style={styles.emailInput}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              left={<TextInput.Icon icon="email" />}
+            />
+            
+            <Button
+              mode="contained"
+              onPress={handleCreateInvite}
+              loading={submitting}
+              disabled={submitting || !email}
+              style={styles.sendButton}
+              icon="send"
+            >
+              Send Invitation
+            </Button>
+          </Card.Content>
+        </Card>
+      )}
+      
+      {/* Message for regular admins */}
+      {!isSuperAdmin() && (
+        <Card style={styles.createInviteCard}>
+          <Card.Content>
+            <Text style={styles.createInviteTitle}>Admin Permissions</Text>
+            <Text style={styles.createInviteDescription}>
+              Only super administrators can create new admin invitations. You can view existing invitations below.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
 
       <View style={styles.listContainer}>
         <View style={styles.listHeader}>
@@ -248,9 +268,19 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 16,
   },
+  headerTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+    marginRight: 10,
+  },
+  superAdminChip: {
+    backgroundColor: '#FFE4B5',
+    borderColor: '#FFA500',
   },
   createInviteCard: {
     margin: 16,
