@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  StyleSheet,
   ScrollView,
   ActivityIndicator,
   Alert,
   Share,
   Platform,
-  TouchableOpacity
+  TouchableOpacity,
+  Image
 } from 'react-native';
 import { Card, Title, Paragraph, Button, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,29 +17,39 @@ import QRCode from 'react-native-qrcode-svg';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
-import { getBookById } from '../../services/bookService';
+import { getBookById, generateBookQR } from '../../services/bookService';
 
 const GenerateQRScreen = ({ navigation, route }) => {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [qrRef, setQrRef] = useState(null);
   const [hasMediaPermission, setHasMediaPermission] = useState(null);
   
   // Get book ID from route params
   const bookId = route.params?.bookId;
   
-  // Generate QR data
-  const getQRData = (book) => {
-    // Create a data object with essential book info
-    const qrData = {
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      type: 'library_book'
-    };
-    
-    // Return as JSON string
-    return JSON.stringify(qrData);
+  // Regenerate QR code
+  const handleRegenerateQR = async () => {
+    try {
+      setRegenerating(true);
+      
+      // Call the service to regenerate and store the QR code
+      const newQRCode = await generateBookQR(bookId);
+      
+      // Update the book with the new QR code
+      setBook(prevBook => ({
+        ...prevBook,
+        library_qr: newQRCode
+      }));
+      
+      Alert.alert('Success', 'QR code regenerated and saved to book record');
+    } catch (error) {
+      console.error('Error regenerating QR code:', error);
+      Alert.alert('Error', 'Failed to regenerate QR code');
+    } finally {
+      setRegenerating(false);
+    }
   };
   
   // Load book data
@@ -87,8 +98,8 @@ const GenerateQRScreen = ({ navigation, route }) => {
         'Storage permission is required to save the QR code to your device.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Grant Permission', 
+          {
+            text: 'Grant Permission',
             onPress: async () => {
               const { status } = await MediaLibrary.requestPermissionsAsync();
               setHasMediaPermission(status === 'granted');
@@ -104,80 +115,105 @@ const GenerateQRScreen = ({ navigation, route }) => {
     }
     
     try {
-      // Convert QR code to PNG data URL
-      let qrImage;
-      qrRef.toDataURL(async (dataURL) => {
-        try {
-          // File path to save the image
-          const fileUri = `${FileSystem.cacheDirectory}qrcode-${bookId}.png`;
-          
-          // Convert base64 to file
-          const base64Code = dataURL.split('data:image/png;base64,')[1];
-          await FileSystem.writeAsStringAsync(fileUri, base64Code, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          // Save to media library
-          const asset = await MediaLibrary.createAssetAsync(fileUri);
-          await MediaLibrary.createAlbumAsync('Library QR Codes', asset, false);
-          
-          Alert.alert(
-            'Success',
-            'QR code saved to your gallery in "Library QR Codes" album'
-          );
-        } catch (error) {
-          console.error('Error saving QR code:', error);
-          Alert.alert('Error', 'Failed to save QR code');
+      let base64Data;
+      
+      // Use existing QR code if available
+      if (book.library_qr) {
+        // For data URLs that already include the prefix
+        if (book.library_qr.startsWith('data:image/png;base64,')) {
+          base64Data = book.library_qr.split('data:image/png;base64,')[1];
+        } else {
+          base64Data = book.library_qr;
         }
+      } else if (qrRef) {
+        // Generate from QR code component if no stored QR
+        await new Promise((resolve) => {
+          qrRef.toDataURL((dataURL) => {
+            base64Data = dataURL.split('data:image/png;base64,')[1];
+            resolve();
+          });
+        });
+      } else {
+        throw new Error('No QR code available to save');
+      }
+      
+      // File path to save the image
+      const fileUri = `${FileSystem.cacheDirectory}qrcode-${bookId}.png`;
+      
+      // Write the file
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+      
+      // Save to media library
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      await MediaLibrary.createAlbumAsync('Library QR Codes', asset, false);
+      
+      Alert.alert(
+        'Success',
+        'QR code saved to your gallery in "Library QR Codes" album'
+      );
     } catch (error) {
-      console.error('Error generating QR code:', error);
-      Alert.alert('Error', 'Failed to generate QR code');
+      console.error('Error saving QR code:', error);
+      Alert.alert('Error', 'Failed to save QR code');
     }
   };
   
   // Share QR code
   const shareQRCode = async () => {
     try {
-      // Convert QR code to PNG data URL
-      qrRef.toDataURL(async (dataURL) => {
-        try {
-          // File path for sharing
-          const fileUri = `${FileSystem.cacheDirectory}qrcode-${bookId}.png`;
-          
-          // Convert base64 to file
-          const base64Code = dataURL.split('data:image/png;base64,')[1];
-          await FileSystem.writeAsStringAsync(fileUri, base64Code, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          // Check if sharing is available
-          const isAvailable = await Sharing.isAvailableAsync();
-          
-          if (isAvailable) {
-            await Sharing.shareAsync(fileUri, {
-              mimeType: 'image/png',
-              dialogTitle: `QR Code for ${book.title}`,
-              UTI: 'public.png'
-            });
-          } else {
-            // Fallback for platforms where sharing is not available
-            // Use Share API which has more limited capabilities
-            const shareOptions = {
-              title: `QR Code for ${book.title}`,
-              message: `QR Code for checking out "${book.title}" by ${book.author}`,
-            };
-            
-            await Share.share(shareOptions);
-          }
-        } catch (error) {
-          console.error('Error sharing QR code:', error);
-          Alert.alert('Error', 'Failed to share QR code');
+      let base64Data;
+      
+      // Use existing QR code if available
+      if (book.library_qr) {
+        // For data URLs that already include the prefix
+        if (book.library_qr.startsWith('data:image/png;base64,')) {
+          base64Data = book.library_qr.split('data:image/png;base64,')[1];
+        } else {
+          base64Data = book.library_qr;
         }
+      } else if (qrRef) {
+        // Generate from QR code component if no stored QR
+        await new Promise((resolve) => {
+          qrRef.toDataURL((dataURL) => {
+            base64Data = dataURL.split('data:image/png;base64,')[1];
+            resolve();
+          });
+        });
+      } else {
+        throw new Error('No QR code available to share');
+      }
+      
+      // File path for sharing
+      const fileUri = `${FileSystem.cacheDirectory}qrcode-${bookId}.png`;
+      
+      // Write the file
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+      
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'image/png',
+          dialogTitle: `QR Code for ${book.title}`,
+          UTI: 'public.png'
+        });
+      } else {
+        // Fallback for platforms where sharing is not available
+        // Use Share API which has more limited capabilities
+        const shareOptions = {
+          title: `QR Code for ${book.title}`,
+          message: `QR Code for checking out "${book.title}" by ${book.author}`,
+        };
+        
+        await Share.share(shareOptions);
+      }
     } catch (error) {
-      console.error('Error generating QR code:', error);
-      Alert.alert('Error', 'Failed to generate QR code');
+      console.error('Error sharing QR code:', error);
+      Alert.alert('Error', 'Failed to share QR code');
     }
   };
   
@@ -204,33 +240,59 @@ const GenerateQRScreen = ({ navigation, route }) => {
           <Divider style={styles.divider} />
           
           <View style={styles.qrContainer}>
-            <QRCode
-              value={getQRData(book)}
-              size={200}
-              backgroundColor="white"
-              color="black"
-              getRef={(ref) => setQrRef(ref)}
-            />
+            {book.library_qr ? (
+              // Render from saved QR code if available
+              <Image
+                source={{ uri: book.library_qr }}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+            ) : (
+              // Otherwise generate on the fly (legacy support)
+              <QRCode
+                value={JSON.stringify({
+                  id: book.id,
+                  title: book.title,
+                  author: book.author,
+                  type: 'library_book'
+                })}
+                size={200}
+                backgroundColor="white"
+                color="black"
+                getRef={(ref) => setQrRef(ref)}
+              />
+            )}
             <Text style={styles.qrText}>Scan to borrow this book</Text>
             
             <View style={styles.qrActions}>
-              <Button 
-                mode="contained" 
-                icon="content-save-outline" 
+              <Button
+                mode="contained"
+                icon="content-save-outline"
                 onPress={saveQRCode}
                 style={styles.qrButton}
               >
                 Save
               </Button>
-              <Button 
-                mode="contained" 
-                icon="share-variant" 
+              <Button
+                mode="contained"
+                icon="share-variant"
                 onPress={shareQRCode}
                 style={styles.qrButton}
               >
                 Share
               </Button>
             </View>
+            
+            <Button
+              mode="outlined"
+              icon="reload"
+              onPress={handleRegenerateQR}
+              loading={regenerating}
+              disabled={regenerating}
+              style={styles.regenerateButton}
+            >
+              Regenerate QR
+            </Button>
           </View>
           
           <Divider style={styles.divider} />
@@ -350,6 +412,16 @@ const styles = StyleSheet.create({
   qrButton: {
     marginHorizontal: 5,
     backgroundColor: '#4A90E2',
+  },
+  regenerateButton: {
+    marginTop: 15,
+    borderColor: '#FF9500',
+    borderWidth: 1,
+  },
+  qrImage: {
+    width: 200,
+    height: 200,
+    backgroundColor: 'white',
   },
   bookInfo: {
     marginTop: 5,

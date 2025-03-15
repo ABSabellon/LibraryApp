@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -14,11 +14,12 @@ import { TextInput, Button, Divider, Chip } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { getBookByBarcode, addBookToLibrary } from '../../services/bookService';
+import { getBookByISBN, addBookToLibrary } from '../../services/bookService';
 
 const AddBookScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [bookAdded, setBookAdded] = useState(false);
   // Book data from scan or route params
   const initialBookData = route.params?.bookData || null;
   
@@ -35,6 +36,8 @@ const AddBookScreen = ({ navigation, route }) => {
     imageUrl: Yup.string().url().nullable(),
     location: Yup.string(),
     notes: Yup.string(),
+    edition: Yup.string(),
+    openlibrary_url: Yup.string().url().nullable(),
   });
   
   // Handle scan book button
@@ -55,12 +58,13 @@ const AddBookScreen = ({ navigation, route }) => {
       
       // Add the book to the library
       await addBookToLibrary(processedValues);
+      setBookAdded(true);
       
       Alert.alert(
         'Success',
-        'Book has been added to the library',
+        `"${values.title}" has been added to the library`,
         [
-          { text: 'Add Another', onPress: () => navigation.replace('AddBook') },
+          { text: 'Add Another Book', onPress: () => navigation.replace('AddBook') },
           { text: 'View Books', onPress: () => navigation.navigate('BookList') }
         ]
       );
@@ -95,10 +99,11 @@ const AddBookScreen = ({ navigation, route }) => {
         setFieldValue('pageCount', volumeInfo.pageCount || null);
         setFieldValue('categories', (volumeInfo.categories || []).join(', ') || '');
         setFieldValue('imageUrl', volumeInfo.imageLinks?.thumbnail || null);
+        setFieldValue('openlibrary_url', volumeInfo.openlibrary_url || ''); // Save OpenLibrary URL
         
-        Alert.alert('Success', 'Book details retrieved successfully');
+        Alert.alert('Success', 'Book details retrieved successfully from OpenLibrary');
       } else {
-        Alert.alert('Not Found', 'No book found with this ISBN');
+        Alert.alert('Not Found', 'No book found with this ISBN in OpenLibrary');
       }
     } catch (error) {
       console.error('Error searching book by ISBN:', error);
@@ -141,6 +146,8 @@ const AddBookScreen = ({ navigation, route }) => {
             imageUrl: initialBookData?.imageUrl || null,
             location: initialBookData?.location || '',
             notes: initialBookData?.notes || '',
+            edition: initialBookData?.edition || '',
+            openlibrary_url: initialBookData?.openlibrary_url || '',
           }}
           validationSchema={BookSchema}
           onSubmit={handleAddBook}
@@ -169,6 +176,16 @@ const AddBookScreen = ({ navigation, route }) => {
                   Search
                 </Button>
               </View>
+              
+              <TextInput
+                label="Edition"
+                value={values.edition}
+                onChangeText={handleChange('edition')}
+                onBlur={handleBlur('edition')}
+                mode="outlined"
+                style={styles.input}
+                placeholder="e.g., First Edition, 2nd Edition, Revised"
+              />
               
               <Divider style={styles.divider} />
               

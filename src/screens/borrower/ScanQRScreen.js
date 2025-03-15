@@ -55,11 +55,8 @@ const ScanQRScreen = ({ navigation }) => {
       const bookData = await getBookById(qrData.id);
       
       if (bookData) {
-        if (bookData.status === 'available') {
-          navigation.navigate('ScanBorrow', { bookId: bookData.id });
-        } else {
-          Alert.alert('Book Unavailable', 'This book is currently not available.', [{ text: 'OK', onPress: () => setScanned(false) }]);
-        }
+        // Navigate to book details screen regardless of status
+        navigation.navigate('ScanBookDetails', { bookId: bookData.id });
       } else {
         Alert.alert('Book Not Found', 'We could not find this book.', [{ text: 'OK', onPress: () => setScanned(false) }]);
       }

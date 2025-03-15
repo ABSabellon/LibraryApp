@@ -1,39 +1,235 @@
 import axios from 'axios';
 import { collection, addDoc, updateDoc, getDoc, getDocs, doc, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import QRCode from 'qrcode';
 
-// Google Books API base URL
-const API_BASE_URL = 'https://www.googleapis.com/books/v1/volumes';
+// Open Library API base URLs
+const OPEN_LIBRARY_ISBN_URL = 'https://openlibrary.org/isbn/';
+const OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json';
+const OPEN_LIBRARY_COVERS_URL = 'https://covers.openlibrary.org/b/id/';
 
-// Function to search books via Google Books API
+// Function to search books via Open Library API
 export const searchBooks = async (searchTerm) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}?q=${encodeURIComponent(searchTerm)}&maxResults=40`);
-    return response.data.items || [];
+    const response = await axios.get(`${OPEN_LIBRARY_SEARCH_URL}?q=${encodeURIComponent(searchTerm)}&limit=40`);
+    const books = response.data.docs || [];
+    
+    // Transform to a format similar to the previous API for compatibility
+    return books.map(book => transformOpenLibraryBook(book));
   } catch (error) {
     console.error('Error searching books:', error);
     throw error;
   }
 };
 
-// Function to get a book by ISBN
+// Function to get a book by ISBN using Open Library API
 export const getBookByISBN = async (isbn) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}?q=isbn:${isbn}`);
-    return response.data.items?.[0] || null;
+    // Remove any hyphens from ISBN
+    const cleanIsbn = isbn.replace(/-/g, '');
+    
+    // First try the direct ISBN lookup
+    try {
+      const response = await axios.get(`${OPEN_LIBRARY_ISBN_URL}${cleanIsbn}.json`);
+      
+      if (response.data) {
+        // For the ISBN endpoint, we need to get additional details using the works API
+        let workKey = response.data.works?.[0]?.key;
+        let authorKeys = response.data.authors?.map(author => author.key) || [];
+        
+        let workDetails = {};
+        let authors = [];
+        
+        // If we have a work key, get additional details
+        if (workKey) {
+          const workResponse = await axios.get(`https://openlibrary.org${workKey}.json`);
+          workDetails = workResponse.data || {};
+        }
+        
+        // Get author details
+        if (authorKeys.length > 0) {
+          const authorPromises = authorKeys.map(key =>
+            axios.get(`https://openlibrary.org${key}.json`)
+          );
+          const authorResponses = await Promise.all(authorPromises);
+          authors = authorResponses.map(res => res.data.name);
+        }
+        
+        // Generate OpenLibrary URL
+        const openLibraryUrl = `https://openlibrary.org/isbn/${cleanIsbn}`;
+        
+        // Combine and transform data
+        return transformOpenLibraryBookDetails(response.data, workDetails, authors, cleanIsbn, openLibraryUrl);
+      }
+    } catch (error) {
+      // If direct lookup fails, try search API as fallback
+      console.log('Direct ISBN lookup failed, trying search:', error.message);
+    }
+    
+    // Fallback to search API
+    const searchResponse = await axios.get(`${OPEN_LIBRARY_SEARCH_URL}?q=isbn:${cleanIsbn}`);
+    const book = searchResponse.data.docs?.[0];
+    
+    if (book) {
+      // Generate OpenLibrary URL for ISBN
+      const openLibraryUrl = `https://openlibrary.org/isbn/${cleanIsbn}`;
+      return transformOpenLibraryBook(book, cleanIsbn, openLibraryUrl);
+    }
+    
+    return null;
   } catch (error) {
     console.error('Error fetching book by ISBN:', error);
     throw error;
   }
 };
 
-// Function to get a book by barcode/ISBN from Google Books API
+// Function to get a book by barcode (which is typically an ISBN)
 export const getBookByBarcode = async (barcode) => {
   try {
-    // Barcodes are typically ISBN numbers
     return await getBookByISBN(barcode);
   } catch (error) {
     console.error('Error fetching book by barcode:', error);
+    throw error;
+  }
+};
+
+// Helper function to transform Open Library book data to a format similar to previous API
+const transformOpenLibraryBook = (book, isbn = null, openLibraryUrl = '') => {
+  // Get cover image URL if available
+  let imageUrl = null;
+  if (book.cover_i) {
+    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${book.cover_i}-M.jpg`;
+  }
+  
+  return {
+    id: book.key,
+    volumeInfo: {
+      title: book.title || '',
+      authors: book.author_name || [],
+      publisher: book.publisher?.[0] || '',
+      publishedDate: book.publish_date?.[0] || book.first_publish_year?.toString() || '',
+      description: book.description || '',
+      pageCount: book.number_of_pages_median || null,
+      categories: book.subject || [],
+      imageLinks: imageUrl ? { thumbnail: imageUrl } : null,
+      industryIdentifiers: [
+        {
+          type: 'ISBN_13',
+          identifier: isbn || book.isbn?.[0] || ''
+        }
+      ],
+      openlibrary_url: openLibraryUrl
+    }
+  };
+};
+
+// Helper function to transform detailed Open Library book data
+const transformOpenLibraryBookDetails = (bookData, workData, authors, isbn, openLibraryUrl = '') => {
+  // Get cover image URL if available
+  let imageUrl = null;
+  if (bookData.covers && bookData.covers.length > 0) {
+    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${bookData.covers[0]}-M.jpg`;
+  } else if (workData.covers && workData.covers.length > 0) {
+    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${workData.covers[0]}-M.jpg`;
+  }
+  
+  return {
+    id: bookData.key,
+    volumeInfo: {
+      title: bookData.title || workData.title || '',
+      authors: authors,
+      publisher: bookData.publishers?.[0] || '',
+      publishedDate: bookData.publish_date || '',
+      description: workData.description?.value || workData.description || '',
+      pageCount: bookData.number_of_pages || null,
+      categories: workData.subjects || [],
+      imageLinks: imageUrl ? { thumbnail: imageUrl } : null,
+      industryIdentifiers: [
+        {
+          type: 'ISBN_13',
+          identifier: isbn
+        }
+      ],
+      openlibrary_url: openLibraryUrl
+    }
+  };
+};
+
+// Helper function to generate QR data for a book
+const generateQRData = (bookId, title, author) => {
+  // Create a data object with essential book info
+  const qrData = {
+    id: bookId,
+    title: title || '',
+    author: author || '',
+    type: 'library_book'
+  };
+  
+  // Return as JSON string
+  return JSON.stringify(qrData);
+};
+
+// Generate QR code as base64 data URL
+const generateQRAsBase64 = async (data) => {
+  try {
+    return await QRCode.toDataURL(data, {
+      errorCorrectionLevel: 'H',
+      margin: 1,
+      width: 300,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    throw error;
+  }
+};
+
+// Generate QR code for a book and update its document
+export const generateBookQR = async (bookId) => {
+  try {
+    // Get the book document
+    const bookRef = doc(db, 'books', bookId);
+    const bookDoc = await getDoc(bookRef);
+    
+    if (!bookDoc.exists()) {
+      throw new Error('Book not found');
+    }
+    
+    const bookData = bookDoc.data();
+    
+    // Generate QR code data for the book
+    const qrData = generateQRData(bookId, bookData.title, bookData.author);
+    const qrCodeBase64 = await generateQRAsBase64(qrData);
+    
+    // Get the current user
+    const { currentUser } = await import('../context/AuthContext').then(module => module.useAuth());
+    
+    // Update the book document with the QR code
+    await updateDoc(bookRef, {
+      library_qr: qrCodeBase64,
+      logs: {
+        ...bookData.logs,
+        qr_generated: {
+          generated_by: currentUser ? {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName || ''
+          } : {
+            uid: 'system',
+            email: 'system',
+            displayName: 'System'
+          },
+          generated_at: new Date()
+        }
+      }
+    });
+    
+    return qrCodeBase64;
+  } catch (error) {
+    console.error('Error generating book QR:', error);
     throw error;
   }
 };
@@ -43,16 +239,90 @@ export const getBookByBarcode = async (barcode) => {
 // Add a book to the library
 export const addBookToLibrary = async (bookData) => {
   try {
-    const booksRef = collection(db, 'books');
-    const bookDoc = await addDoc(booksRef, {
-      ...bookData,
+    // Get the current user
+    const { currentUser } = await import('../context/AuthContext').then(module => module.useAuth());
+    
+    // Prepare clean book data
+    const cleanBookData = {
+      // Essential book information
+      title: bookData.title || '',
+      author: bookData.author || '',
+      isbn: bookData.isbn || '',
+      publisher: bookData.publisher || '',
+      publishedDate: bookData.publishedDate || '',
+      description: bookData.description || '',
+      pageCount: bookData.pageCount || null,
+      categories: Array.isArray(bookData.categories) ? bookData.categories : [],
+      imageUrl: bookData.imageUrl || null,
+      
+      // Library-specific information
       status: 'available', // Default status
-      addedDate: new Date(),
+      location: bookData.location || '',
+      notes: bookData.notes || '',
+      edition: bookData.edition || '',
+      
+      // OpenLibrary URL from the API
+      openlibrary_url: bookData.openlibrary_url || '',
+      
+      // Stats
       borrowCount: 0,
       ratings: [],
       averageRating: 0,
-    });
-    return { id: bookDoc.id, ...bookData };
+      
+      // Logs
+      logs: {
+        created: {
+          created_by: currentUser ? {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName || ''
+          } : {
+            uid: 'system',
+            email: 'system',
+            displayName: 'System'
+          },
+          created_at: new Date()
+        }
+      }
+    };
+    
+    // Add to Firestore
+    const booksRef = collection(db, 'books');
+    const bookDoc = await addDoc(booksRef, cleanBookData);
+    
+    // Generate and save QR code
+    const bookId = bookDoc.id;
+    try {
+      const qrCodeBase64 = await generateQRAsBase64(generateQRData(bookId, cleanBookData.title, cleanBookData.author));
+      
+      // Update the book with QR code
+      await updateDoc(doc(db, 'books', bookId), {
+        library_qr: qrCodeBase64,
+        logs: {
+          ...cleanBookData.logs,
+          qr_generated: {
+            generated_by: currentUser ? {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName || ''
+            } : {
+              uid: 'system',
+              email: 'system',
+              displayName: 'System'
+            },
+            generated_at: new Date()
+          }
+        }
+      });
+      
+      // Add QR to the return data
+      cleanBookData.library_qr = qrCodeBase64;
+    } catch (qrError) {
+      console.error('Error generating QR code during book creation:', qrError);
+      // Non-critical error - continue with book creation without QR
+    }
+    
+    return { id: bookDoc.id, ...cleanBookData };
   } catch (error) {
     console.error('Error adding book to library:', error);
     throw error;
@@ -106,8 +376,39 @@ export const updateBookStatus = async (bookId, status) => {
 // Update book details
 export const updateBookDetails = async (bookId, bookData) => {
   try {
+    // Get current user
+    const { currentUser } = await import('../context/AuthContext').then(module => module.useAuth());
+    
+    // Get the existing book to preserve logs
     const bookRef = doc(db, 'books', bookId);
-    await updateDoc(bookRef, bookData);
+    const bookDoc = await getDoc(bookRef);
+    let existingLogs = {};
+    
+    if (bookDoc.exists()) {
+      existingLogs = bookDoc.data().logs || {};
+    }
+    
+    // Prepare update data with new log entry
+    const updateData = {
+      ...bookData,
+      logs: {
+        ...existingLogs,
+        updated: {
+          updated_by: currentUser ? {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName || ''
+          } : {
+            uid: 'system',
+            email: 'system',
+            displayName: 'System'
+          },
+          updated_at: new Date()
+        }
+      }
+    };
+    
+    await updateDoc(bookRef, updateData);
     return true;
   } catch (error) {
     console.error('Error updating book details:', error);
@@ -118,8 +419,39 @@ export const updateBookDetails = async (bookId, bookData) => {
 // Delete book
 export const deleteBook = async (bookId) => {
   try {
+    // Get current user
+    const { currentUser } = await import('../context/AuthContext').then(module => module.useAuth());
+    
+    // Get the existing book to preserve logs
     const bookRef = doc(db, 'books', bookId);
-    await deleteDoc(bookRef);
+    const bookDoc = await getDoc(bookRef);
+    
+    if (bookDoc.exists()) {
+      // Instead of hard deleting, mark as deleted with log info
+      const bookData = bookDoc.data();
+      await updateDoc(bookRef, {
+        status: 'deleted',
+        logs: {
+          ...(bookData.logs || {}),
+          deleted: {
+            deleted_by: currentUser ? {
+              uid: currentUser.uid,
+              email: currentUser.email,
+              displayName: currentUser.displayName || ''
+            } : {
+              uid: 'system',
+              email: 'system',
+              displayName: 'System'
+            },
+            deleted_at: new Date()
+          }
+        }
+      });
+    } else {
+      // If book doesn't exist, use deleteDoc
+      await deleteDoc(bookRef);
+    }
+    
     return true;
   } catch (error) {
     console.error('Error deleting book:', error);

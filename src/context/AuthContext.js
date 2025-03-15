@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -26,14 +26,42 @@ export const AuthProvider = ({ children }) => {
       // Create auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Create user profile in Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      const now = new Date();
+      
+      // Create structured user profile in Firestore
+      const userData = {
+        // Basic user information
         email,
         name,
         role,
         phone,
-        createdAt: new Date()
-      });
+        
+        // Account status
+        status: 'active',
+        
+        // Stats
+        borrowCount: 0,
+        
+        // Timestamps
+        created_at: now,
+        last_login: now,
+        
+        // Logs
+        logs: {
+          created: {
+            created_by: {
+              uid: 'system', // System-created account
+              email: 'system',
+              name: 'System Registration'
+            },
+            created_at: now
+          }
+        }
+      };
+      
+      // Save to users collection using Firebase Auth UID as the document ID
+      // This ensures direct 1:1 mapping between Auth and Firestore records
+      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
       
       return userCredential.user;
     } catch (err) {
@@ -46,7 +74,51 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (email, password) => {
     try {
       setError('');
-      return await signInWithEmailAndPassword(auth, email, password);
+      // Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Update last login timestamp and add to login history
+      const now = new Date();
+      const userRef = doc(db, 'users', userCredential.user.uid);
+      
+      try {
+        // Get current user data to update login history
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const loginHistory = userData.login_history || [];
+          
+          // Only keep the last 50 logins to avoid document size limits
+          if (loginHistory.length >= 50) {
+            loginHistory.shift(); // Remove oldest login
+          }
+          
+          // Add current login to history
+          loginHistory.push({
+            timestamp: now,
+            device: navigator.userAgent || 'Unknown Device',
+            ip: 'Logged on client'
+          });
+          
+          // Update user document with new login info
+          await updateDoc(userRef, {
+            last_login: now,
+            login_history: loginHistory,
+            logs: {
+              ...(userData.logs || {}),
+              login: {
+                timestamp: now
+              }
+            }
+          });
+        }
+      } catch (updateError) {
+        // Non-critical error, just log it but don't fail the sign-in
+        console.error('Error updating login history:', updateError);
+      }
+      
+      return userCredential;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -108,9 +180,37 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       
       if (user) {
+        // Get user profile
         const profile = await getUserProfile(user.uid);
+        
         if (profile) {
           setUserRole(profile.role);
+          
+          // Check if this is a new session (comparing last session with current)
+          const now = new Date();
+          const lastSessionTime = profile.last_session ?
+            (profile.last_session.toDate ? profile.last_session.toDate() : new Date(profile.last_session)) : null;
+          
+          // If no session exists or last session was more than 1 hour ago, consider this a new session
+          if (!lastSessionTime || (now - lastSessionTime) > (60 * 60 * 1000)) {
+            try {
+              // Update session information
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, {
+                last_session: now,
+                session_count: (profile.session_count || 0) + 1,
+                logs: {
+                  ...(profile.logs || {}),
+                  session: {
+                    timestamp: now,
+                    count: (profile.session_count || 0) + 1
+                  }
+                }
+              });
+            } catch (error) {
+              console.error('Error updating session data:', error);
+            }
+          }
         }
       }
     });
