@@ -8,7 +8,9 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
-  Alert
+  Alert,
+  ScrollView,
+  Button
 } from 'react-native';
 import { 
   Searchbar, 
@@ -231,13 +233,12 @@ const CatalogScreen = ({ navigation }) => {
             onDismiss={() => setSortMenuVisible(false)}
             anchor={
               <Button 
+                title="Sort"
                 mode="outlined" 
                 onPress={() => setSortMenuVisible(true)}
                 style={styles.sortButton}
                 icon="sort"
-              >
-                Sort
-              </Button>
+              />
             }
           >
             <Menu.Item onPress={() => onSortOrderChange('title_asc')} title="Title (A-Z)" />

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import AdminNavigator from './AdminNavigator';
 import BorrowerNavigator from './BorrowerNavigator';
+import GuestNavigator from './GuestNavigator';
 
 // Import loading screen
 import LoadingScreen from '../screens/common/LoadingScreen';
@@ -24,8 +25,8 @@ const AppNavigator = () => {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!currentUser ? (
-          // Not authenticated - show auth screens
-          <Stack.Screen name="Auth" component={AuthNavigator} />
+          // Guest mode - show guest screens with the option to log in/register
+          <Stack.Screen name="Guest" component={GuestNavigator} />
         ) : (
           // Authenticated - show app screens based on user role
           userRole === 'admin' ? (
@@ -34,6 +35,8 @@ const AppNavigator = () => {
             <Stack.Screen name="Borrower" component={BorrowerNavigator} />
           )
         )}
+        {/* Auth Navigator is now a separate route that can be navigated to */}
+        <Stack.Screen name="Auth" component={AuthNavigator} />
       </Stack.Navigator>
     </NavigationContainer>
   );

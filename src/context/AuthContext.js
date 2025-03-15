@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { auth, db } from '../services/firebase';
+
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -7,6 +8,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
+
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
@@ -22,19 +24,28 @@ export const AuthProvider = ({ children }) => {
   // Create a new user
   const signUp = async (email, password, name, role = 'borrower', phone = '') => {
     try {
+      console.log('Signing up :: ',auth )
+
       setError('');
+
       // Create auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
+      console.log('userCredential :: ', userCredential )
+
       const now = new Date();
       
       // Create structured user profile in Firestore
       const userData = {
         // Basic user information
-        email,
-        name,
-        role,
-        phone,
+
+        profile:{
+          uid: userCredential.user.uid,
+          email,
+          name,
+          role,
+          phone,
+        },
         
         // Account status
         status: 'active',
@@ -43,8 +54,10 @@ export const AuthProvider = ({ children }) => {
         borrowCount: 0,
         
         // Timestamps
-        created_at: now,
-        last_login: now,
+        timestamps:{
+          created_at: now,
+          last_login: now,
+        },
         
         // Logs
         logs: {
@@ -61,7 +74,7 @@ export const AuthProvider = ({ children }) => {
       
       // Save to users collection using Firebase Auth UID as the document ID
       // This ensures direct 1:1 mapping between Auth and Firestore records
-      await setDoc(doc(db, 'users', userCredential.user.uid), userData);
+      await setDoc(doc(db, 'Users', userCredential.user.uid), userData);
       
       return userCredential.user;
     } catch (err) {

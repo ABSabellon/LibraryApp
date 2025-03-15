@@ -3,10 +3,19 @@ module.exports = function(api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Support for .env file
-      ["module:babel-plugin-inline-import", {
-        "extensions": [".env"]
-      }]
+      [
+        'module:react-native-dotenv',
+        {
+          envName: 'APP_ENV',
+          moduleName: '@env',
+          path: '.env',
+          blocklist: null,
+          allowlist: null,
+          safe: false,
+          allowUndefined: true,
+          verbose: false,
+        }
+      ]
     ],
   };
 };

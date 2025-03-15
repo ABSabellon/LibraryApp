@@ -253,6 +253,51 @@ const MyBooksScreen = ({ navigation }) => {
   
   const filteredBooks = getFilteredBooks();
   
+  // If user is not logged in, show auth prompt
+  if (!currentUser) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Books</Text>
+        </View>
+        
+        <View style={styles.authPromptContainer}>
+          <MaterialCommunityIcons name="account-lock" size={80} color="#4A90E2" />
+          
+          <Text style={styles.authPromptTitle}>Sign in to view your books</Text>
+          
+          <Text style={styles.authPromptText}>
+            Sign in or create an account to borrow books and track your reading history.
+          </Text>
+          
+          <Button
+            mode="contained"
+            onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            style={styles.signInButton}
+          >
+            Sign In
+          </Button>
+          
+          <Button
+            mode="outlined"
+            onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
+            style={styles.registerButton}
+          >
+            Create Account
+          </Button>
+          
+          <Button
+            mode="text"
+            onPress={() => navigation.navigate('CatalogTab')}
+            style={styles.browseAsGuestButton}
+          >
+            Continue Browsing
+          </Button>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -262,49 +307,49 @@ const MyBooksScreen = ({ navigation }) => {
           visible={filterMenuVisible}
           onDismiss={() => setFilterMenuVisible(false)}
           anchor={
-            <Button 
-              mode="outlined" 
+            <Button
+              mode="outlined"
               onPress={() => setFilterMenuVisible(true)}
               style={styles.filterButton}
               icon="filter-variant"
             >
-              {filter === 'all' ? 'All Books' : 
+              {filter === 'all' ? 'All Books' :
                filter === 'active' ? 'Active' :
                filter === 'returned' ? 'Returned' : 'Overdue'}
             </Button>
           }
         >
-          <Menu.Item 
+          <Menu.Item
             onPress={() => {
               setFilter('all');
               setFilterMenuVisible(false);
-            }} 
-            title="All Books" 
+            }}
+            title="All Books"
             leadingIcon="book-multiple"
           />
-          <Menu.Item 
+          <Menu.Item
             onPress={() => {
               setFilter('active');
               setFilterMenuVisible(false);
-            }} 
-            title="Active" 
+            }}
+            title="Active"
             leadingIcon="book-open-variant"
           />
-          <Menu.Item 
+          <Menu.Item
             onPress={() => {
               setFilter('returned');
               setFilterMenuVisible(false);
-            }} 
-            title="Returned" 
+            }}
+            title="Returned"
             leadingIcon="book-check"
           />
           <Divider />
-          <Menu.Item 
+          <Menu.Item
             onPress={() => {
               setFilter('overdue');
               setFilterMenuVisible(false);
-            }} 
-            title="Overdue" 
+            }}
+            title="Overdue"
             leadingIcon="book-alert"
           />
         </Menu>
@@ -321,13 +366,13 @@ const MyBooksScreen = ({ navigation }) => {
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="bookshelf" size={64} color="#CCCCCC" />
               <Text style={styles.emptyText}>
-                {filter !== 'all' 
+                {filter !== 'all'
                   ? `No ${filter} books found`
                   : "You haven't borrowed any books yet"}
               </Text>
               
               {filter === 'all' && (
-                <Button 
+                <Button
                   mode="contained"
                   onPress={() => navigation.navigate('CatalogTab')}
                   style={styles.browseButton}
@@ -407,6 +452,39 @@ const styles = StyleSheet.create({
   },
   browseButton: {
     backgroundColor: '#4A90E2',
+  },
+  authPromptContainer: {
+    flex: 1,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authPromptTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333333',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  authPromptText: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 22,
+  },
+  signInButton: {
+    marginBottom: 15,
+    backgroundColor: '#4A90E2',
+    width: '80%',
+  },
+  registerButton: {
+    marginBottom: 15,
+    borderColor: '#4A90E2',
+    width: '80%',
+  },
+  browseAsGuestButton: {
+    marginTop: 10,
   },
   listContent: {
     padding: 10,

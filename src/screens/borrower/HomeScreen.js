@@ -41,7 +41,7 @@ const HomeScreen = ({ navigation }) => {
       // Get featured/highest rated books
       const topRated = await getHighestRatedBooks(5);
       
-      // Get user's borrowed books
+      // Get user's borrowed books - only for authenticated users
       let borrowedBooks = [];
       if (currentUser && currentUser.email) {
         const borrows = await getBorrowsByEmail(currentUser.email);
@@ -187,7 +187,20 @@ const HomeScreen = ({ navigation }) => {
       }
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>Welcome, {currentUser?.displayName || 'Reader'}</Text>
+        <Text style={styles.greeting}>
+          {currentUser ?
+            `Welcome, ${currentUser.displayName || 'Reader'}` :
+            'Welcome to Library App'
+          }
+        </Text>
+        {!currentUser && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+            style={styles.signInButton}
+          >
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        )}
       </View>
       
       <View style={styles.statsContainer}>
@@ -267,14 +280,36 @@ const HomeScreen = ({ navigation }) => {
         </View>
         
         <View style={styles.myBooksContainer}>
-          {myBooks.length > 0 ? (
+          {!currentUser ? (
+            // Guest user - show sign in prompt
+            <View style={styles.emptyBooksContainer}>
+              <MaterialCommunityIcons name="account-lock" size={48} color="#CCCCCC" />
+              <Text style={styles.emptyText}>Sign in to track your borrowed books</Text>
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('Auth', { screen: 'Login' })}
+                style={styles.signInPromptButton}
+              >
+                Sign In
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={() => navigation.navigate('Auth', { screen: 'Register' })}
+                style={styles.registerButton}
+              >
+                Create Account
+              </Button>
+            </View>
+          ) : myBooks.length > 0 ? (
+            // Logged in user with books
             myBooks.map(book => renderMyBook(book))
           ) : (
+            // Logged in user without books
             <View style={styles.emptyBooksContainer}>
               <MaterialCommunityIcons name="bookshelf" size={48} color="#CCCCCC" />
               <Text style={styles.emptyText}>You haven't borrowed any books yet</Text>
-              <Button 
-                mode="contained" 
+              <Button
+                mode="contained"
                 onPress={() => navigation.navigate('CatalogTab')}
                 style={styles.browseButton}
               >
@@ -297,11 +332,15 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 10,
     backgroundColor: '#4A90E2',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    flex: 1,
   },
   statsContainer: {
     marginTop: -5,
@@ -490,6 +529,24 @@ const styles = StyleSheet.create({
   browseButton: {
     marginTop: 15,
     backgroundColor: '#4A90E2',
+  },
+  signInPromptButton: {
+    marginTop: 15,
+    backgroundColor: '#4A90E2',
+  },
+  registerButton: {
+    marginTop: 10,
+    borderColor: '#4A90E2',
+  },
+  signInButton: {
+    backgroundColor: 'white',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  signInButtonText: {
+    color: '#4A90E2',
+    fontWeight: 'bold',
   },
 });
 
