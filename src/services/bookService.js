@@ -7,20 +7,7 @@ import QRCode from 'qrcode';
 const OPEN_LIBRARY_IDENTIFIER_URL = 'http://openlibrary.org/api/volumes/brief/';
 const OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json';
 const OPEN_LIBRARY_COVERS_URL = 'https://covers.openlibrary.org/b/id/';
-
-// Function to search books via Open Library API
-export const searchBooks = async (searchTerm) => {
-  try {
-    const response = await axios.get(`${OPEN_LIBRARY_SEARCH_URL}?q=${encodeURIComponent(searchTerm)}&limit=40`);
-    const books = response.data.docs || [];
-    
-    // Transform to a format similar to the previous API for compatibility
-    return books.map(book => transformOpenLibraryBook(book));
-  } catch (error) {
-    console.error('Error searching books:', error);
-    throw error;
-  }
-};
+const OPEN_LIBRARY_URL = 'https://openlibrary.org';
 
 export const getBookByIdentifier = async (type, id) => {
   try {
@@ -32,7 +19,8 @@ export const getBookByIdentifier = async (type, id) => {
     }
 
     // Note: Keeping the hardcoded ISBN URL as requested
-    const response = await axios.get(`${OPEN_LIBRARY_IDENTIFIER_URL}${type}/9781619634442.json`);
+    const response = await axios.get(`${OPEN_LIBRARY_IDENTIFIER_URL}${type}/${identifier}.json`);
+    // const response = await axios.get(`${OPEN_LIBRARY_IDENTIFIER_URL}${type}/9781619634442.json`);
     
     // Ensure we have valid data
     if (!response.data.records || Object.keys(response.data.records).length === 0) {
@@ -45,29 +33,24 @@ export const getBookByIdentifier = async (type, id) => {
     
     // Using the exact structure from the API response
     const transformedBook = {
-      volumeInfo: {
-        title: bookData.data?.title || '',
-        authors: bookData.data?.authors ? bookData.data.authors.map(author => ({ name: author.name,url: author.url})) : [],
-        publisher: bookData.data?.publishers ? bookData.data.publishers.map(publisher => publisher.name):[],
-        published_date: bookData.data?.publish_date || bookData.publishDates?.[0] || '',
-        publisher_place:bookData.data?.publish_places ? bookData.data.publish_places.map(places => places.name) : [],
-        description: bookData.details?.details?.description || '',
-        page_count: bookData.data?.number_of_pages || null,
-        subjects: bookData.data?.subjects ? bookData.data.subjects.map(subject => subject.name) : [],
-        weight: bookData.data?.weight || null,
-        identifiers: bookData.data?.identifiers 
-        ? Object.fromEntries(
-            Object.entries(bookData.data.identifiers).map(([key, value]) => [key, value[0]])
-          ) 
-        : {},
-        covers: bookData.data?.cover ? {
-          cover_small: bookData.data.cover.small,
-          cover_medium: bookData.data.cover.medium,
-          cover_large: bookData.data.cover.large
-        } : null,
-        openlibrary_url: bookData.recordURL || bookData.data?.url || ''
-      }
+      title: bookData.data?.title || '',
+      full_title: bookData.details?.details?.full_title || '',
+      authors: bookData.data?.authors ? bookData.data.authors.map(author => ({ name: author.name,url: author.url})) : [],
+      publisher: bookData.data?.publishers ? bookData.data.publishers.map(publisher => publisher.name):[],
+      published_date: bookData.data?.publish_date || bookData.publishDates?.[0] || '',
+      publisher_place:bookData.data?.publish_places ? bookData.data.publish_places.map(places => places.name) : [],
+      page_count: bookData.data?.number_of_pages || null,
+      subjects: bookData.data?.subjects ? bookData.data.subjects.map(subject => subject.name) : [],
+      weight: bookData.data?.weight || null,
+      identifiers: bookData.data?.identifiers ? Object.fromEntries(Object.entries(bookData.data.identifiers).map(([key, value]) => [key, value[0]])) : {},
+      covers: bookData.data?.cover ? { cover_small: bookData.data.cover.small, cover_medium: bookData.data.cover.medium, cover_large: bookData.data.cover.large} : null,
+      openlibrary_url: bookData.recordURL || bookData.data?.url || '',
+      work_key: bookData.details?.details?.works?.[0]?.key || '',
+      series: bookData.details?.details?.series || [],
     };
+
+    const response2 = await axios.get(`${OPEN_LIBRARY_URL}${transformedBook.work_key}.json`);
+    transformedBook.description = response2.data?.description?.value || '';
 
     return transformedBook;
   } catch (error) {
@@ -86,67 +69,6 @@ export const getBookByBarcode = async (barcode) => {
   }
 };
 
-// Helper function to transform Open Library book data to a format similar to previous API
-const transformOpenLibraryBook = (book, isbn = null, openLibraryUrl = '') => {
-  // Get cover image URL if available
-  let imageUrl = null;
-  if (book.cover_i) {
-    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${book.cover_i}-M.jpg`;
-  }
-  
-  return {
-    id: book.key,
-    volumeInfo: {
-      title: book.title || '',
-      authors: book.author_name || [],
-      publisher: book.publisher?.[0] || '',
-      publishedDate: book.publish_date?.[0] || book.first_publish_year?.toString() || '',
-      description: book.description || '',
-      pageCount: book.number_of_pages_median || null,
-      categories: book.subject || [],
-      imageLinks: imageUrl ? { thumbnail: imageUrl } : null,
-      industryIdentifiers: [
-        {
-          type: 'ISBN_13',
-          identifier: isbn || book.isbn?.[0] || ''
-        }
-      ],
-      openlibrary_url: openLibraryUrl
-    }
-  };
-};
-
-// Helper function to transform detailed Open Library book data
-const transformOpenLibraryBookDetails = (bookData, workData, authors, isbn, openLibraryUrl = '') => {
-  // Get cover image URL if available
-  let imageUrl = null;
-  if (bookData.covers && bookData.covers.length > 0) {
-    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${bookData.covers[0]}-M.jpg`;
-  } else if (workData.covers && workData.covers.length > 0) {
-    imageUrl = `${OPEN_LIBRARY_COVERS_URL}${workData.covers[0]}-M.jpg`;
-  }
-  
-  return {
-    id: bookData.key,
-    volumeInfo: {
-      title: bookData.title || workData.title || '',
-      authors: authors,
-      publisher: bookData.publishers?.[0] || '',
-      publishedDate: bookData.publish_date || '',
-      description: workData.description?.value || workData.description || '',
-      pageCount: bookData.number_of_pages || null,
-      categories: workData.subjects || [],
-      imageLinks: imageUrl ? { thumbnail: imageUrl } : null,
-      industryIdentifiers: [
-        {
-          type: 'ISBN_13',
-          identifier: isbn
-        }
-      ],
-      openlibrary_url: openLibraryUrl
-    }
-  };
-};
 
 // Helper function to generate QR data for a book
 const generateQRData = (bookId, title, author) => {

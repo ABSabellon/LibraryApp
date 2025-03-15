@@ -135,35 +135,34 @@ const AddBookScreen = ({ navigation, route }) => {
   
   // Handle search by ISBN
   const handleSearchISBN = async (isbn, setFieldValue) => {
-    // if (!isbn) {
-    //   Alert.alert('Error', 'Please enter an ISBN');
-    //   return;
-    // }
+    if (!isbn) {
+      Alert.alert('Error', 'Please enter an ISBN');
+      return;
+    }
     
     try {
       setSearchLoading(true);
       const book = await getBookByIdentifier('isbn',isbn);
       console.log('book :: ',book);
       
-      if (book && book.volumeInfo) {
-        const volumeInfo = book.volumeInfo;
+      if (book) {
         
-        // Extract and map book data from the new volumeInfo structure
-        setFieldValue('title', volumeInfo.title || '');
+        // Extract and map book data from the new book structure
+        setFieldValue('title', book.title || '');
         
         // Handle authors for chip display
-        if (volumeInfo.authors) {
+        if (book.authors) {
           let authorList = [];
-          if (Array.isArray(volumeInfo.authors)) {
+          if (Array.isArray(book.authors)) {
             // If authors is an array of objects with name property
-            if (typeof volumeInfo.authors[0] === 'object') {
-              authorList = volumeInfo.authors.map(a => a.name);
+            if (typeof book.authors[0] === 'object') {
+              authorList = book.authors.map(a => a.name);
             } else {
               // If authors is just an array of strings
-              authorList = volumeInfo.authors;
+              authorList = book.authors;
             }
           } else {
-            authorList = [volumeInfo.authors.toString()];
+            authorList = [book.authors.toString()];
           }
           
           // Update author chips
@@ -175,45 +174,45 @@ const AddBookScreen = ({ navigation, route }) => {
         }
         
         // Handle publisher
-        if (volumeInfo.publisher) {
-          if (Array.isArray(volumeInfo.publisher)) {
-            setFieldValue('publisher', volumeInfo.publisher[0] || '');
+        if (book.publisher) {
+          if (Array.isArray(book.publisher)) {
+            setFieldValue('publisher', book.publisher[0] || '');
           } else {
-            setFieldValue('publisher', volumeInfo.publisher);
+            setFieldValue('publisher', book.publisher);
           }
         } else {
           setFieldValue('publisher', '');
         }
         
         // Handle published date
-        setFieldValue('publishedDate', volumeInfo.published_date || volumeInfo.publishedDate || '');
+        setFieldValue('publishedDate', book.published_date || book.publishedDate || '');
         
         // Handle description
-        setFieldValue('description', volumeInfo.description || '');
+        setFieldValue('description', book.description || '');
         
         // Handle page count
-        setFieldValue('pageCount', volumeInfo.page_count || volumeInfo.pageCount || null);
+        setFieldValue('pageCount', book.page_count || book.pageCount || null);
         
         // Handle subjects/categories for chip display
-        if (volumeInfo.subjects && Array.isArray(volumeInfo.subjects)) {
-          setCategoryChips(volumeInfo.subjects);
-          setFieldValue('categories', volumeInfo.subjects.join(', '));
-        } else if (volumeInfo.categories && Array.isArray(volumeInfo.categories)) {
-          setCategoryChips(volumeInfo.categories);
-          setFieldValue('categories', volumeInfo.categories.join(', '));
+        if (book.subjects && Array.isArray(book.subjects)) {
+          setCategoryChips(book.subjects);
+          setFieldValue('categories', book.subjects.join(', '));
+        } else if (book.categories && Array.isArray(book.categories)) {
+          setCategoryChips(book.categories);
+          setFieldValue('categories', book.categories.join(', '));
         } else {
           setCategoryChips([]);
           setFieldValue('categories', '');
         }
         
         // Handle cover image
-        if (volumeInfo.imageLinks && volumeInfo.imageLinks.thumbnail) {
-          setFieldValue('imageUrl', volumeInfo.imageLinks.thumbnail);
-        } else if (volumeInfo.covers) {
+        if (book.imageLinks && book.imageLinks.thumbnail) {
+          setFieldValue('imageUrl', book.imageLinks.thumbnail);
+        } else if (book.covers) {
           setFieldValue('imageUrl',
-            volumeInfo.covers.cover_medium ||
-            volumeInfo.covers.cover_large ||
-            volumeInfo.covers.cover_small ||
+            book.covers.cover_medium ||
+            book.covers.cover_large ||
+            book.covers.cover_small ||
             null
           );
         } else {
@@ -221,7 +220,7 @@ const AddBookScreen = ({ navigation, route }) => {
         }
         
         // Handle OpenLibrary URL
-        setFieldValue('openlibrary_url', volumeInfo.openlibrary_url || '');
+        setFieldValue('openlibrary_url', book.openlibrary_url || '');
         
         Alert.alert('Success', 'Book details retrieved successfully from OpenLibrary');
       } else {
@@ -298,15 +297,19 @@ const AddBookScreen = ({ navigation, route }) => {
                 </Button>
               </View>
               
+              {/* Book details form */}
               <TextInput
-                label="Edition"
-                value={values.edition}
-                onChangeText={handleChange('edition')}
-                onBlur={handleBlur('edition')}
+                label="Title *"
+                value={values.title}
+                onChangeText={handleChange('title')}
+                onBlur={handleBlur('title')}
                 mode="outlined"
                 style={styles.input}
-                placeholder="e.g., First Edition, 2nd Edition, Revised"
+                error={touched.title && errors.title}
               />
+              {touched.title && errors.title && (
+                <Text style={styles.errorText}>{errors.title}</Text>
+              )}
               
               <Divider style={styles.divider} />
               
@@ -332,20 +335,6 @@ const AddBookScreen = ({ navigation, route }) => {
                   <MaterialCommunityIcons name="book-open-page-variant" size={64} color="#DDDDDD" />
                   <Text style={styles.noCoverText}>No cover image</Text>
                 </View>
-              )}
-              
-              {/* Book details form */}
-              <TextInput
-                label="Title *"
-                value={values.title}
-                onChangeText={handleChange('title')}
-                onBlur={handleBlur('title')}
-                mode="outlined"
-                style={styles.input}
-                error={touched.title && errors.title}
-              />
-              {touched.title && errors.title && (
-                <Text style={styles.errorText}>{errors.title}</Text>
               )}
               
               {/* Author Chips */}
