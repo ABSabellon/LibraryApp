@@ -49,40 +49,39 @@ const AdminRegisterScreen = ({ navigation, route }) => {
     
     try {
       setLoading(true);
-      setVerifying(true);
+      // setVerifying(true);
       
       // First verify the invite code
-      const isValid = await verifyAdminInviteCode(inviteCode, email);
+      // const isValid = await verifyAdminInviteCode(inviteCode, email);
       
-      if (!isValid) {
-        Alert.alert(
-          'Invalid Invite Code',
-          'The invite code you entered is invalid or has expired. Please contact the library management for a valid code.'
-        );
-        setVerifying(false);
-        setLoading(false);
-        return;
-      }
+      // if (!isValid) {
+      //   Alert.alert(
+      //     'Invalid Invite Code',
+      //     'The invite code you entered is invalid or has expired. Please contact the library management for a valid code.'
+      //   );
+      //   setVerifying(false);
+      //   setLoading(false);
+      //   return;
+      // }
       
-      setVerifying(false);
+      // setVerifying(false);
       
       // Create the admin user
       // await signUp(email, password, name, 'admin', phone);
-      await signUp('supertest@test.com', 'tup5ab8e', 'admin tester', 'admin', '09178181996');
+      await signUp('supertest@test.com', 'tup5ab8e', 'super tester', 'admin', '09178181996');
       
 
       console.log('Admin registration complete - navigating directly to Admin screen');
       
-      // Force navigation to Admin screen immediately
       setTimeout(() => {
         navigation.reset({
           index: 0,
           routes: [{ name: 'Admin' }],
         });
-      }, 500); // Small delay to ensure auth state is updated
-      // Don't set loading to false on success - keep loader visible during navigation
+      }, 500); 
+     
     } catch (error) {
-      setLoading(false); // Only hide loader on error
+      setLoading(false); 
       Alert.alert('Registration Failed', error.message);
     }
   };

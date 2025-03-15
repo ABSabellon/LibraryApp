@@ -218,6 +218,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     backgroundColor: '#4A90E2',
+    paddingBottom: 45,
   },
   greeting: {
     fontSize: 24,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,46 @@ import {
   Platform,
   TouchableOpacity,
   Image,
-  Alert
+  Alert,
+  FlatList
 } from 'react-native';
-import { TextInput, Button, Divider, Chip } from 'react-native-paper';
+import { TextInput, Button, Divider, Chip, IconButton } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { getBookByISBN, addBookToLibrary } from '../../services/bookService';
-
+import { getBookByIdentifier, addBookToLibrary } from '../../services/bookService';
 const AddBookScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [bookAdded, setBookAdded] = useState(false);
+  const [authorChips, setAuthorChips] = useState([]);
+  const [categoryChips, setCategoryChips] = useState([]);
+  const [newAuthor, setNewAuthor] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  
   // Book data from scan or route params
   const initialBookData = route.params?.bookData || null;
   
+  // Initialize chips from initial data if available
+  useEffect(() => {
+    if (initialBookData) {
+      if (initialBookData.author) {
+        const authors = typeof initialBookData.author === 'string'
+          ? initialBookData.author.split(',').map(a => a.trim())
+          : Array.isArray(initialBookData.author) ? initialBookData.author : [];
+        setAuthorChips(authors);
+      }
+      
+      if (initialBookData.categories) {
+        const categories = Array.isArray(initialBookData.categories)
+          ? initialBookData.categories
+          : typeof initialBookData.categories === 'string'
+            ? initialBookData.categories.split(',').map(c => c.trim())
+            : [];
+        setCategoryChips(categories);
+      }
+    }
+  }, [initialBookData]);
   // Validation schema
   const BookSchema = Yup.object().shape({
     title: Yup.string().required('Title is required'),
@@ -34,7 +59,6 @@ const AddBookScreen = ({ navigation, route }) => {
     pageCount: Yup.number().integer().positive().nullable(),
     categories: Yup.string(),
     imageUrl: Yup.string().url().nullable(),
-    location: Yup.string(),
     notes: Yup.string(),
     edition: Yup.string(),
     openlibrary_url: Yup.string().url().nullable(),
@@ -76,30 +100,128 @@ const AddBookScreen = ({ navigation, route }) => {
     }
   };
   
+  // Helper functions for chips
+  const addAuthorChip = (author, setFieldValue) => {
+    if (author && author.trim()) {
+      const newChips = [...authorChips, author.trim()];
+      setAuthorChips(newChips);
+      setFieldValue('author', newChips.join(', '));
+      setNewAuthor('');
+    }
+  };
+  
+  const removeAuthorChip = (index, setFieldValue) => {
+    const newChips = [...authorChips];
+    newChips.splice(index, 1);
+    setAuthorChips(newChips);
+    setFieldValue('author', newChips.join(', '));
+  };
+  
+  const addCategoryChip = (category, setFieldValue) => {
+    if (category && category.trim()) {
+      const newChips = [...categoryChips, category.trim()];
+      setCategoryChips(newChips);
+      setFieldValue('categories', newChips.join(', '));
+      setNewCategory('');
+    }
+  };
+  
+  const removeCategoryChip = (index, setFieldValue) => {
+    const newChips = [...categoryChips];
+    newChips.splice(index, 1);
+    setCategoryChips(newChips);
+    setFieldValue('categories', newChips.join(', '));
+  };
+  
   // Handle search by ISBN
   const handleSearchISBN = async (isbn, setFieldValue) => {
-    if (!isbn) {
-      Alert.alert('Error', 'Please enter an ISBN');
-      return;
-    }
+    // if (!isbn) {
+    //   Alert.alert('Error', 'Please enter an ISBN');
+    //   return;
+    // }
     
     try {
       setSearchLoading(true);
-      const book = await getBookByISBN(isbn);
+      const book = await getBookByIdentifier('isbn',isbn);
+      console.log('book :: ',book);
       
-      if (book) {
-        // Extract and map book data
-        const volumeInfo = book.volumeInfo || {};
+      if (book && book.volumeInfo) {
+        const volumeInfo = book.volumeInfo;
         
+        // Extract and map book data from the new volumeInfo structure
         setFieldValue('title', volumeInfo.title || '');
-        setFieldValue('author', (volumeInfo.authors || []).join(', ') || '');
-        setFieldValue('publisher', volumeInfo.publisher || '');
-        setFieldValue('publishedDate', volumeInfo.publishedDate || '');
+        
+        // Handle authors for chip display
+        if (volumeInfo.authors) {
+          let authorList = [];
+          if (Array.isArray(volumeInfo.authors)) {
+            // If authors is an array of objects with name property
+            if (typeof volumeInfo.authors[0] === 'object') {
+              authorList = volumeInfo.authors.map(a => a.name);
+            } else {
+              // If authors is just an array of strings
+              authorList = volumeInfo.authors;
+            }
+          } else {
+            authorList = [volumeInfo.authors.toString()];
+          }
+          
+          // Update author chips
+          setAuthorChips(authorList);
+          setFieldValue('author', authorList.join(', '));
+        } else {
+          setAuthorChips([]);
+          setFieldValue('author', '');
+        }
+        
+        // Handle publisher
+        if (volumeInfo.publisher) {
+          if (Array.isArray(volumeInfo.publisher)) {
+            setFieldValue('publisher', volumeInfo.publisher[0] || '');
+          } else {
+            setFieldValue('publisher', volumeInfo.publisher);
+          }
+        } else {
+          setFieldValue('publisher', '');
+        }
+        
+        // Handle published date
+        setFieldValue('publishedDate', volumeInfo.published_date || volumeInfo.publishedDate || '');
+        
+        // Handle description
         setFieldValue('description', volumeInfo.description || '');
-        setFieldValue('pageCount', volumeInfo.pageCount || null);
-        setFieldValue('categories', (volumeInfo.categories || []).join(', ') || '');
-        setFieldValue('imageUrl', volumeInfo.imageLinks?.thumbnail || null);
-        setFieldValue('openlibrary_url', volumeInfo.openlibrary_url || ''); // Save OpenLibrary URL
+        
+        // Handle page count
+        setFieldValue('pageCount', volumeInfo.page_count || volumeInfo.pageCount || null);
+        
+        // Handle subjects/categories for chip display
+        if (volumeInfo.subjects && Array.isArray(volumeInfo.subjects)) {
+          setCategoryChips(volumeInfo.subjects);
+          setFieldValue('categories', volumeInfo.subjects.join(', '));
+        } else if (volumeInfo.categories && Array.isArray(volumeInfo.categories)) {
+          setCategoryChips(volumeInfo.categories);
+          setFieldValue('categories', volumeInfo.categories.join(', '));
+        } else {
+          setCategoryChips([]);
+          setFieldValue('categories', '');
+        }
+        
+        // Handle cover image
+        if (volumeInfo.imageLinks && volumeInfo.imageLinks.thumbnail) {
+          setFieldValue('imageUrl', volumeInfo.imageLinks.thumbnail);
+        } else if (volumeInfo.covers) {
+          setFieldValue('imageUrl',
+            volumeInfo.covers.cover_medium ||
+            volumeInfo.covers.cover_large ||
+            volumeInfo.covers.cover_small ||
+            null
+          );
+        } else {
+          setFieldValue('imageUrl', null);
+        }
+        
+        // Handle OpenLibrary URL
+        setFieldValue('openlibrary_url', volumeInfo.openlibrary_url || '');
         
         Alert.alert('Success', 'Book details retrieved successfully from OpenLibrary');
       } else {
@@ -144,7 +266,6 @@ const AddBookScreen = ({ navigation, route }) => {
             pageCount: initialBookData?.pageCount || null,
             categories: initialBookData?.categories ? initialBookData.categories.join(', ') : '',
             imageUrl: initialBookData?.imageUrl || null,
-            location: initialBookData?.location || '',
             notes: initialBookData?.notes || '',
             edition: initialBookData?.edition || '',
             openlibrary_url: initialBookData?.openlibrary_url || '',
@@ -227,18 +348,47 @@ const AddBookScreen = ({ navigation, route }) => {
                 <Text style={styles.errorText}>{errors.title}</Text>
               )}
               
-              <TextInput
-                label="Author *"
-                value={values.author}
-                onChangeText={handleChange('author')}
-                onBlur={handleBlur('author')}
-                mode="outlined"
-                style={styles.input}
-                error={touched.author && errors.author}
-              />
-              {touched.author && errors.author && (
-                <Text style={styles.errorText}>{errors.author}</Text>
-              )}
+              {/* Author Chips */}
+              <View style={styles.chipSection}>
+                <Text style={styles.chipSectionTitle}>Authors *</Text>
+                <ScrollView horizontal style={styles.chipScrollView}>
+                  {authorChips.map((author, index) => (
+                    <Chip
+                      key={`author-${index}`}
+                      onClose={() => removeAuthorChip(index, setFieldValue)}
+                      style={styles.chip}
+                      mode="outlined"
+                    >
+                      {author}
+                    </Chip>
+                  ))}
+                </ScrollView>
+                <View style={styles.chipInputRow}>
+                  <TextInput
+                    placeholder="Add author"
+                    value={newAuthor}
+                    onChangeText={setNewAuthor}
+                    style={styles.chipInput}
+                    mode="outlined"
+                    right={
+                      <TextInput.Icon
+                        icon="plus"
+                        onPress={() => addAuthorChip(newAuthor, setFieldValue)}
+                      />
+                    }
+                  />
+                </View>
+                {/* Hidden input for Formik validation */}
+                <TextInput
+                  value={values.author}
+                  onChangeText={handleChange('author')}
+                  style={{ display: 'none' }}
+                  error={touched.author && errors.author}
+                />
+                {touched.author && errors.author && (
+                  <Text style={styles.errorText}>{errors.author}</Text>
+                )}
+              </View>
               
               <TextInput
                 label="Publisher"
@@ -268,32 +418,43 @@ const AddBookScreen = ({ navigation, route }) => {
                 keyboardType="numeric"
               />
               
-              <TextInput
-                label="Categories (comma separated)"
-                value={values.categories}
-                onChangeText={handleChange('categories')}
-                onBlur={handleBlur('categories')}
-                mode="outlined"
-                style={styles.input}
-              />
-              
-              <TextInput
-                label="Image URL"
-                value={values.imageUrl || ''}
-                onChangeText={handleChange('imageUrl')}
-                onBlur={handleBlur('imageUrl')}
-                mode="outlined"
-                style={styles.input}
-              />
-              
-              <TextInput
-                label="Location in Library"
-                value={values.location}
-                onChangeText={handleChange('location')}
-                onBlur={handleBlur('location')}
-                mode="outlined"
-                style={styles.input}
-              />
+              {/* Categories Chips */}
+              <View style={styles.chipSection}>
+                <Text style={styles.chipSectionTitle}>Categories</Text>
+                <ScrollView horizontal style={styles.chipScrollView}>
+                  {categoryChips.map((category, index) => (
+                    <Chip
+                      key={`category-${index}`}
+                      onClose={() => removeCategoryChip(index, setFieldValue)}
+                      style={styles.chip}
+                      mode="outlined"
+                    >
+                      {category}
+                    </Chip>
+                  ))}
+                </ScrollView>
+                <View style={styles.chipInputRow}>
+                  <TextInput
+                    placeholder="Add category"
+                    value={newCategory}
+                    onChangeText={setNewCategory}
+                    style={styles.chipInput}
+                    mode="outlined"
+                    right={
+                      <TextInput.Icon
+                        icon="plus"
+                        onPress={() => addCategoryChip(newCategory, setFieldValue)}
+                      />
+                    }
+                  />
+                </View>
+                {/* Hidden input for Formik */}
+                <TextInput
+                  value={values.categories}
+                  onChangeText={handleChange('categories')}
+                  style={{ display: 'none' }}
+                />
+              </View>
               
               <TextInput
                 label="Description"
@@ -423,6 +584,34 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     padding: 5,
     backgroundColor: '#4A90E2',
+  },
+  // Chip section styles
+  chipSection: {
+    marginBottom: 15,
+  },
+  chipSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333333',
+  },
+  chipScrollView: {
+    flexDirection: 'row',
+    marginBottom: 10,
+    maxHeight: 45,
+  },
+  chip: {
+    marginRight: 8,
+    marginBottom: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  chipInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chipInput: {
+    flex: 1,
+    marginBottom: 10,
   },
 });
 

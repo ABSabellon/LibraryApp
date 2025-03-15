@@ -125,8 +125,10 @@ export const AuthProvider = ({ children }) => {
               }
             }
           });
-
-          return userCredential.user;
+          return {
+            ...userCredential.user,
+            profile: userData.profile,
+          };
         }
       } catch (updateError) {
         // Non-critical error, just log it but don't fail the sign-in
@@ -237,7 +239,6 @@ export const AuthProvider = ({ children }) => {
         
         if (profile) {
           // Set the user role - role is nested inside profile object
-          console.log('Setting user role from profile:', profile);
           setUserRole(profile.profile?.role);
           
           // Check if this is a new session (comparing last session with current)

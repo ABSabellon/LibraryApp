@@ -4,7 +4,7 @@ import { db } from './firebase';
 import QRCode from 'qrcode';
 
 // Open Library API base URLs
-const OPEN_LIBRARY_ISBN_URL = 'https://openlibrary.org/isbn/';
+const OPEN_LIBRARY_IDENTIFIER_URL = 'http://openlibrary.org/api/volumes/brief/';
 const OPEN_LIBRARY_SEARCH_URL = 'https://openlibrary.org/search.json';
 const OPEN_LIBRARY_COVERS_URL = 'https://covers.openlibrary.org/b/id/';
 
@@ -22,63 +22,56 @@ export const searchBooks = async (searchTerm) => {
   }
 };
 
-// Function to get a book by ISBN using Open Library API
-export const getBookByISBN = async (isbn) => {
+export const getBookByIdentifier = async (type, id) => {
   try {
-    // Remove any hyphens from ISBN
-    const cleanIsbn = isbn.replace(/-/g, '');
+    let identifier = id;
+
+    if (type === 'isbn') {
+      // Remove dashes from ISBN
+      identifier = id.replace(/-/g, '');
+    }
+
+    // Note: Keeping the hardcoded ISBN URL as requested
+    const response = await axios.get(`${OPEN_LIBRARY_IDENTIFIER_URL}${type}/9781619634442.json`);
     
-    // First try the direct ISBN lookup
-    try {
-      const response = await axios.get(`${OPEN_LIBRARY_ISBN_URL}${cleanIsbn}.json`);
-      
-      if (response.data) {
-        // For the ISBN endpoint, we need to get additional details using the works API
-        let workKey = response.data.works?.[0]?.key;
-        let authorKeys = response.data.authors?.map(author => author.key) || [];
-        
-        let workDetails = {};
-        let authors = [];
-        
-        // If we have a work key, get additional details
-        if (workKey) {
-          const workResponse = await axios.get(`https://openlibrary.org${workKey}.json`);
-          workDetails = workResponse.data || {};
-        }
-        
-        // Get author details
-        if (authorKeys.length > 0) {
-          const authorPromises = authorKeys.map(key =>
-            axios.get(`https://openlibrary.org${key}.json`)
-          );
-          const authorResponses = await Promise.all(authorPromises);
-          authors = authorResponses.map(res => res.data.name);
-        }
-        
-        // Generate OpenLibrary URL
-        const openLibraryUrl = `https://openlibrary.org/isbn/${cleanIsbn}`;
-        
-        // Combine and transform data
-        return transformOpenLibraryBookDetails(response.data, workDetails, authors, cleanIsbn, openLibraryUrl);
+    // Ensure we have valid data
+    if (!response.data.records || Object.keys(response.data.records).length === 0) {
+      throw new Error('Book not found.');
+    }
+
+    // Extract the first record key dynamically
+    const firstRecordKey = Object.keys(response.data.records)[0];
+    const bookData = response.data.records[firstRecordKey];
+    
+    // Using the exact structure from the API response
+    const transformedBook = {
+      volumeInfo: {
+        title: bookData.data?.title || '',
+        authors: bookData.data?.authors ? bookData.data.authors.map(author => ({ name: author.name,url: author.url})) : [],
+        publisher: bookData.data?.publishers ? bookData.data.publishers.map(publisher => publisher.name):[],
+        published_date: bookData.data?.publish_date || bookData.publishDates?.[0] || '',
+        publisher_place:bookData.data?.publish_places ? bookData.data.publish_places.map(places => places.name) : [],
+        description: bookData.details?.details?.description || '',
+        page_count: bookData.data?.number_of_pages || null,
+        subjects: bookData.data?.subjects ? bookData.data.subjects.map(subject => subject.name) : [],
+        weight: bookData.data?.weight || null,
+        identifiers: bookData.data?.identifiers 
+        ? Object.fromEntries(
+            Object.entries(bookData.data.identifiers).map(([key, value]) => [key, value[0]])
+          ) 
+        : {},
+        covers: bookData.data?.cover ? {
+          cover_small: bookData.data.cover.small,
+          cover_medium: bookData.data.cover.medium,
+          cover_large: bookData.data.cover.large
+        } : null,
+        openlibrary_url: bookData.recordURL || bookData.data?.url || ''
       }
-    } catch (error) {
-      // If direct lookup fails, try search API as fallback
-      console.log('Direct ISBN lookup failed, trying search:', error.message);
-    }
-    
-    // Fallback to search API
-    const searchResponse = await axios.get(`${OPEN_LIBRARY_SEARCH_URL}?q=isbn:${cleanIsbn}`);
-    const book = searchResponse.data.docs?.[0];
-    
-    if (book) {
-      // Generate OpenLibrary URL for ISBN
-      const openLibraryUrl = `https://openlibrary.org/isbn/${cleanIsbn}`;
-      return transformOpenLibraryBook(book, cleanIsbn, openLibraryUrl);
-    }
-    
-    return null;
+    };
+
+    return transformedBook;
   } catch (error) {
-    console.error('Error fetching book by ISBN:', error);
+    console.error('Error fetching book:', error.message || error);
     throw error;
   }
 };

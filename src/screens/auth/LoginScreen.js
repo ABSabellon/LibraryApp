@@ -37,14 +37,23 @@ const LoginScreen = ({ navigation }) => {
       
       // await signIn(email, password);
 
-      await signIn('test@test.com', 'tup5ab8e');
-      
-      setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Borrower' }],
-        });
-      }, 500); // Small delay to ensure auth state is updated
+     const user = await signIn('supertest@test.com', 'tup5ab8e');
+
+      if(user.profile.role === 'admin'){
+        setTimeout(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Admin' }],
+          });
+        }, 500);
+      }else{
+        setTimeout(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Borrower' }],
+          });
+        }, 500);
+      }
     } catch (error) {
       setLoading(false); // Only hide loader on error
       Alert.alert('Login Failed', error.message);
